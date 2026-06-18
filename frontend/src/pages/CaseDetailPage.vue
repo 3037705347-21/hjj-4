@@ -16,7 +16,7 @@ import {
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import { mockCases, caseStatusMap } from '@/mock/data'
-import type { Case, MaterialNode, MaterialNodeType } from '@/types'
+import type { Case, MaterialNode } from '@/types'
 import { MaterialNodeType as NodeType } from '@/types'
 import { flattenMaterialTree } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { FolderPlus, FilePlus, RotateCcw, Download, Filter } from 'lucide-vue-next'
+import { FolderPlus, FilePlus, RotateCcw, Filter } from 'lucide-vue-next'
 import MaterialTreeItem from './MaterialTreeItem.vue'
 import type { MaterialNode } from '@/types'
 import { MaterialNodeType } from '@/types'
