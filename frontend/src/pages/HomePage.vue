@@ -15,6 +15,7 @@ import {
   MessageSquare,
   BookTemplate,
   FileCheck,
+  BarChart3,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -45,6 +46,10 @@ const goToTemplates = () => {
 
 const goToGenerationRecords = () => {
   router.push({ name: 'generation-records' })
+}
+
+const goToReports = () => {
+  router.push({ name: 'report-overview' })
 }
 
 const features = [
@@ -108,6 +113,12 @@ const features = [
     description: '基于案件信息和材料清单，一键生成标准化文书，支持 Excel 和 PDF 格式导出',
     color: 'rose',
   },
+  {
+    icon: BarChart3,
+    title: '统计报表与经营看板',
+    description: '多维度数据统计与可视化分析，包含案件分布、材料规模、律师绩效等经营视图',
+    color: 'sky',
+  },
 ]
 
 const colorMap: Record<string, string> = {
@@ -121,6 +132,7 @@ const colorMap: Record<string, string> = {
   teal: 'bg-teal-50 text-teal-600',
   amber: 'bg-amber-50 text-amber-600',
   rose: 'bg-rose-50 text-rose-600',
+  sky: 'bg-sky-50 text-sky-600',
 }
 </script>
 
@@ -179,6 +191,13 @@ const colorMap: Record<string, string> = {
           >
             <FileCheck class="w-4 h-4" />
             生成记录
+          </button>
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToReports"
+          >
+            <BarChart3 class="w-4 h-4" />
+            统计报表
           </button>
           <button
             class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
@@ -306,6 +325,13 @@ const colorMap: Record<string, string> = {
             >
               <FileCheck class="w-5 h-5" />
               生成记录
+            </button>
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"
+              @click="goToReports"
+            >
+              <BarChart3 class="w-5 h-5" />
+              统计报表
             </button>
           </div>
         </div>

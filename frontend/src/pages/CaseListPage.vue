@@ -18,6 +18,7 @@ import {
   History,
   MessageSquare,
   Archive,
+  BarChart3,
 } from 'lucide-vue-next'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
@@ -46,6 +47,10 @@ const goToCommunications = () => {
 
 const goToArchives = () => {
   router.push({ name: 'archive-list' })
+}
+
+const goToReports = () => {
+  router.push({ name: 'report-overview' })
 }
 
 const cases = ref<Case[]>([...mockCases])
@@ -194,6 +199,13 @@ const cancelDelete = () => {
             >
               <Archive class="w-5 h-5 text-orange-600" />
               卷宗归档
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToReports"
+            >
+              <BarChart3 class="w-5 h-5 text-sky-600" />
+              统计报表
             </button>
             <button
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"

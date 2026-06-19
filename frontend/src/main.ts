@@ -13,6 +13,9 @@ import ArchiveDetailPage from './pages/ArchiveDetailPage.vue'
 import TemplateListPage from './pages/TemplateListPage.vue'
 import TemplateEditPage from './pages/TemplateEditPage.vue'
 import GenerationRecordPage from './pages/GenerationRecordPage.vue'
+import ReportOverviewPage from './pages/ReportOverviewPage.vue'
+import ReportCaseDistributionPage from './pages/ReportCaseDistributionPage.vue'
+import ReportMaterialStatsPage from './pages/ReportMaterialStatsPage.vue'
 import './style.css'
 
 const router = createRouter({
@@ -31,6 +34,9 @@ const router = createRouter({
     { path: '/templates/create', name: 'template-create', component: TemplateEditPage },
     { path: '/templates/:id', name: 'template-edit', component: TemplateEditPage },
     { path: '/generation-records', name: 'generation-records', component: GenerationRecordPage },
+    { path: '/reports', name: 'report-overview', component: ReportOverviewPage },
+    { path: '/reports/case-distribution', name: 'report-case-distribution', component: ReportCaseDistributionPage },
+    { path: '/reports/material-stats', name: 'report-material-stats', component: ReportMaterialStatsPage },
   ],
 })
 
