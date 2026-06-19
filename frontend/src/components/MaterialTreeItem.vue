@@ -217,7 +217,7 @@ const getDropClass = (node: MaterialNode) => {
             class="w-4 h-4 text-gray-500"
           />
         </button>
-        <span v-else-if="!multiSelectMode" class="w-5 flex-shrink-0"></span>
+        <span v-else class="w-5 flex-shrink-0"></span>
 
         <FolderOpen
           v-if="node.type === MaterialNodeType.FOLDER && node.expanded"

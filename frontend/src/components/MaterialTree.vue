@@ -419,8 +419,19 @@ const confirmBatchMove = () => {
     }
   }
 
-  let result = localMaterials.value
   const nodesToMove = getNodesByIds(localMaterials.value, selectedIds)
+  const targetParent = targetId ? findNodeById(localMaterials.value, targetId) : null
+  const targetSiblings = targetParent ? targetParent.children || [] : localMaterials.value
+
+  for (const node of nodesToMove) {
+    const duplicate = targetSiblings.find(s => s.name === node.name && s.id !== node.id)
+    if (duplicate) {
+      alert(`移动失败：目标位置已存在名为「${node.name}」的节点，请先重命名。`)
+      return
+    }
+  }
+
+  let result = localMaterials.value
 
   result = removeNodesByIds(result, selectedIds)
 
@@ -846,7 +857,6 @@ defineExpose({
             </button>
             <button
               class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="moveTargetFolderId === null && selectedFolderCount === 0 ? false : false"
               @click="confirmBatchMove"
             >
               确认移动
