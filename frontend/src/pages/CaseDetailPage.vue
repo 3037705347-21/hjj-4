@@ -29,10 +29,12 @@ import {
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
 import CaseTaskSection from '@/components/CaseTaskSection.vue'
+import CaseEventSummary from '@/components/CaseEventSummary.vue'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { getTemplateByCaseType } from '@/mock/materialTemplates'
 import { computeTaskSummary, refreshOverdueTasks } from '@/mock/tasks'
-import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord, TaskSummary } from '@/types'
+import { computeEventSummary, refreshOverdueEvents } from '@/mock/caseEvents'
+import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord, TaskSummary, CaseEventSummary as EventSummaryType } from '@/types'
 import { CaseStatus, MaterialNodeType as NodeType } from '@/types'
 import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
@@ -107,6 +109,7 @@ onMounted(() => {
     statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
   }
   refreshOverdueTasks()
+  refreshOverdueEvents()
   window.addEventListener('keydown', handleKeydown)
 })
 
@@ -459,9 +462,24 @@ const taskSummary = computed<TaskSummary>(() => {
   return computeTaskSummary(currentCase.value.id)
 })
 
+const eventSummary = computed<EventSummaryType>(() => {
+  if (!currentCase.value) {
+    return {
+      total: 0, pending: 0, inProgress: 0,
+      completed: 0, cancelled: 0, overdue: 0, upcoming: [],
+    }
+  }
+  return computeEventSummary(currentCase.value.id)
+})
+
 const goToTaskList = () => {
   if (!currentCase.value) return
   router.push({ name: 'task-list', query: { caseId: currentCase.value.id } })
+}
+
+const goToTimeline = () => {
+  if (!currentCase.value) return
+  router.push({ name: 'case-timeline', query: { caseId: currentCase.value.id } })
 }
 </script>
 
@@ -756,6 +774,14 @@ const goToTaskList = () => {
         :summary="taskSummary"
         class="mb-6"
         @go-to-task-list="goToTaskList"
+      />
+
+      <CaseEventSummary
+        v-if="currentCase"
+        :case-id="currentCase.id"
+        :summary="eventSummary"
+        class="mb-6"
+        @go-to-timeline="goToTimeline"
       />
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" style="min-height: 600px;">

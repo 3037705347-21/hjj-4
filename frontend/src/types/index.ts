@@ -130,3 +130,113 @@ export interface TaskSummary {
   nearestDueDate?: string
   nearestDueTaskTitle?: string
 }
+
+export enum CaseEventType {
+  FILING = 'filing',
+  HEARING = 'hearing',
+  EVIDENCE_DEADLINE = 'evidence_deadline',
+  DOCUMENT_SUBMISSION = 'document_submission',
+  CLOSING = 'closing',
+  MEDIATION = 'mediation',
+  INVESTIGATION = 'investigation',
+  OTHER = 'other',
+}
+
+export enum CaseEventStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  OVERDUE = 'overdue',
+}
+
+export interface CaseEvent {
+  eventId: string
+  caseId: string
+  eventType: CaseEventType
+  title: string
+  eventDate: string
+  remindBeforeDays: number
+  location?: string
+  description?: string
+  status: CaseEventStatus
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
+export interface CaseEventSummary {
+  total: number
+  pending: number
+  inProgress: number
+  completed: number
+  cancelled: number
+  overdue: number
+  upcoming: CaseEvent[]
+}
+
+export const caseEventTypeMap: Record<CaseEventType, { label: string; class: string; dotClass: string }> = {
+  [CaseEventType.FILING]: {
+    label: '立案',
+    class: 'bg-blue-100 text-blue-800 border-blue-200',
+    dotClass: 'bg-blue-500',
+  },
+  [CaseEventType.HEARING]: {
+    label: '开庭',
+    class: 'bg-red-100 text-red-800 border-red-200',
+    dotClass: 'bg-red-500',
+  },
+  [CaseEventType.EVIDENCE_DEADLINE]: {
+    label: '举证截止',
+    class: 'bg-amber-100 text-amber-800 border-amber-200',
+    dotClass: 'bg-amber-500',
+  },
+  [CaseEventType.DOCUMENT_SUBMISSION]: {
+    label: '提交文书',
+    class: 'bg-purple-100 text-purple-800 border-purple-200',
+    dotClass: 'bg-purple-500',
+  },
+  [CaseEventType.CLOSING]: {
+    label: '结案归档',
+    class: 'bg-gray-100 text-gray-800 border-gray-200',
+    dotClass: 'bg-gray-500',
+  },
+  [CaseEventType.MEDIATION]: {
+    label: '调解',
+    class: 'bg-teal-100 text-teal-800 border-teal-200',
+    dotClass: 'bg-teal-500',
+  },
+  [CaseEventType.INVESTIGATION]: {
+    label: '调查取证',
+    class: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    dotClass: 'bg-indigo-500',
+  },
+  [CaseEventType.OTHER]: {
+    label: '其他',
+    class: 'bg-slate-100 text-slate-800 border-slate-200',
+    dotClass: 'bg-slate-500',
+  },
+}
+
+export const caseEventStatusMap: Record<CaseEventStatus, { label: string; class: string }> = {
+  [CaseEventStatus.PENDING]: {
+    label: '待开始',
+    class: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  },
+  [CaseEventStatus.IN_PROGRESS]: {
+    label: '进行中',
+    class: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+  [CaseEventStatus.COMPLETED]: {
+    label: '已完成',
+    class: 'bg-green-100 text-green-800 border-green-200',
+  },
+  [CaseEventStatus.CANCELLED]: {
+    label: '已取消',
+    class: 'bg-gray-100 text-gray-800 border-gray-200',
+  },
+  [CaseEventStatus.OVERDUE]: {
+    label: '已逾期',
+    class: 'bg-red-100 text-red-800 border-red-200',
+  },
+}

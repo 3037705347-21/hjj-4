@@ -10,6 +10,8 @@ import {
   Users,
   FileText,
   ClipboardList,
+  CalendarDays,
+  History,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -22,12 +24,32 @@ const goToTasks = () => {
   router.push({ name: 'task-list' })
 }
 
+const goToCalendar = () => {
+  router.push({ name: 'case-calendar' })
+}
+
+const goToTimeline = () => {
+  router.push({ name: 'case-timeline' })
+}
+
 const features = [
   {
     icon: FolderTree,
     title: '材料树管理',
     description: '以树形结构直观管理案件材料，支持文件夹分类、拖拽排序、快速增删改',
     color: 'blue',
+  },
+  {
+    icon: CalendarDays,
+    title: '庭期日历',
+    description: '日历视图直观展示所有案件的开庭、举证、文书提交等关键节点，一目了然',
+    color: 'red',
+  },
+  {
+    icon: History,
+    title: '案件时间线',
+    description: '按案件维度展示完整时间线，追踪立案、开庭、结案等全流程关键事件',
+    color: 'cyan',
   },
   {
     icon: ClipboardList,
@@ -61,6 +83,8 @@ const colorMap: Record<string, string> = {
   green: 'bg-green-50 text-green-600',
   purple: 'bg-purple-50 text-purple-600',
   orange: 'bg-orange-50 text-orange-600',
+  red: 'bg-red-50 text-red-600',
+  cyan: 'bg-cyan-50 text-cyan-600',
 }
 </script>
 
@@ -77,13 +101,27 @@ const colorMap: Record<string, string> = {
             <p class="text-xs text-gray-500">Case Material Management</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <button
             class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
             @click="goToTasks"
           >
             <ClipboardList class="w-4 h-4" />
             任务管理
+          </button>
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToTimeline"
+          >
+            <History class="w-4 h-4" />
+            案件时间线
+          </button>
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToCalendar"
+          >
+            <CalendarDays class="w-4 h-4" />
+            庭期日历
           </button>
           <button
             class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
@@ -135,7 +173,7 @@ const colorMap: Record<string, string> = {
     </section>
 
     <section class="max-w-7xl mx-auto px-6 pb-20">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div
           v-for="feature in features"
           :key="feature.title"
@@ -168,7 +206,7 @@ const colorMap: Record<string, string> = {
           <p class="text-blue-100 text-lg mb-8 leading-relaxed">
             进入系统，体验高效便捷的案件材料管理流程。支持文件夹分类管理、拖拽排序、一键导出清单。
           </p>
-          <div class="flex flex-col sm:flex-row items-start gap-3">
+          <div class="flex flex-col sm:flex-row items-start gap-3 flex-wrap">
             <button
               class="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-blue-600 rounded-xl hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl text-base font-semibold"
               @click="goToCases"
@@ -176,6 +214,20 @@ const colorMap: Record<string, string> = {
               <Briefcase class="w-5 h-5" />
               案件管理
               <ArrowRight class="w-5 h-5" />
+            </button>
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"
+              @click="goToCalendar"
+            >
+              <CalendarDays class="w-5 h-5" />
+              庭期日历
+            </button>
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"
+              @click="goToTimeline"
+            >
+              <History class="w-5 h-5" />
+              案件时间线
             </button>
             <button
               class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"

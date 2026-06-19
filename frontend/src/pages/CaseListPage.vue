@@ -8,12 +8,14 @@ import {
   FileText,
   User,
   Calendar,
+  CalendarDays,
   Briefcase,
   ChevronRight,
   Edit3,
   Trash2,
   AlertTriangle,
   ClipboardList,
+  History,
 } from 'lucide-vue-next'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
@@ -26,6 +28,14 @@ const router = useRouter()
 
 const goToTasks = () => {
   router.push({ name: 'task-list' })
+}
+
+const goToCalendar = () => {
+  router.push({ name: 'case-calendar' })
+}
+
+const goToTimeline = () => {
+  router.push({ name: 'case-timeline' })
 }
 
 const cases = ref<Case[]>([...mockCases])
@@ -139,13 +149,27 @@ const cancelDelete = () => {
             <h1 class="text-2xl font-bold text-gray-900">案件管理</h1>
             <p class="mt-1 text-sm text-gray-500">管理所有案件及其材料档案</p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <button
               class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
               @click="goToTasks"
             >
               <ClipboardList class="w-5 h-5 text-indigo-600" />
               任务管理
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToTimeline"
+            >
+              <History class="w-5 h-5 text-cyan-600" />
+              案件时间线
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToCalendar"
+            >
+              <CalendarDays class="w-5 h-5 text-red-600" />
+              庭期日历
             </button>
             <button
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"

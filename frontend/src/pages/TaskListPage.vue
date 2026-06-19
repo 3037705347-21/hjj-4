@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import {
   Search,
   Plus,
@@ -8,6 +8,7 @@ import {
   ClipboardList,
   User,
   Calendar,
+  CalendarDays,
   Briefcase,
   ChevronRight,
   Edit3,
@@ -22,6 +23,8 @@ import {
   Clock,
   AlertTriangle,
   ArrowRight,
+  History,
+  FolderTree,
 } from 'lucide-vue-next'
 import {
   mockTasks,
@@ -151,6 +154,18 @@ const getCaseName = (caseId: string): string => {
 const getCaseNumber = (caseId: string): string => {
   const c = mockCases.find(c => c.id === caseId)
   return c ? c.caseNumber : ''
+}
+
+const goToCases = () => {
+  router.push({ name: 'case-list' })
+}
+
+const goToCalendar = () => {
+  router.push({ name: 'case-calendar' })
+}
+
+const goToTimeline = () => {
+  router.push({ name: 'case-timeline' })
 }
 
 const goToCaseDetail = (caseId: string, event?: MouseEvent) => {
@@ -288,13 +303,36 @@ const getTypeIconColor = (type: TaskTypeType): string => {
             <h1 class="text-2xl font-bold text-gray-900">案件任务与提醒</h1>
             <p class="mt-1 text-sm text-gray-500">管理所有案件的待办事项、截止日期和进度跟踪</p>
           </div>
-          <button
-            class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-            @click="handleCreate"
-          >
-            <Plus class="w-5 h-5" />
-            新建任务
-          </button>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToCases"
+            >
+              <FolderTree class="w-5 h-5 text-blue-600" />
+              案件管理
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToTimeline"
+            >
+              <History class="w-5 h-5 text-cyan-600" />
+              案件时间线
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToCalendar"
+            >
+              <CalendarDays class="w-5 h-5 text-red-600" />
+              庭期日历
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              @click="handleCreate"
+            >
+              <Plus class="w-5 h-5" />
+              新建任务
+            </button>
+          </div>
         </div>
       </div>
     </header>
