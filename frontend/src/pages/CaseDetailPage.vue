@@ -103,6 +103,7 @@ const archiveForm = ref({
   remark: '',
 })
 const archiveFormErrors = ref<Record<string, string>>({})
+const archiveVersion = ref(0)
 
 const tabs: Array<{ key: DetailTab; label: string; icon: any }> = [
   { key: 'case-info', label: '案件详情', icon: FileTextIcon },
@@ -534,6 +535,7 @@ const goToCommunicationList = () => {
 }
 
 const currentArchive = computed(() => {
+  void archiveVersion.value
   if (!currentCase.value) return null
   return getArchiveByCaseId(currentCase.value.id) || null
 })
@@ -595,6 +597,7 @@ const handleArchiveSubmit = () => {
     remark: archiveForm.value.remark.trim() || undefined,
   })
 
+  archiveVersion.value++
   closeArchiveModal()
 }
 
