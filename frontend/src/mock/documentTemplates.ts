@@ -293,6 +293,20 @@ export const createDefaultTemplate = (type: TemplateType, name?: string): Docume
   }
 }
 
+export const duplicateTemplate = (source: DocumentTemplate, name?: string): DocumentTemplate => {
+  const now = new Date().toISOString()
+  const copy: DocumentTemplate = {
+    ...JSON.parse(JSON.stringify(source)),
+    templateId: generateId(),
+    name: name || `${source.name} (副本)`,
+    createdAt: now,
+    updatedAt: now,
+    isDefault: false,
+  }
+  mockTemplates.unshift(copy)
+  return copy
+}
+
 export const getGenerationRecords = (): GenerationRecord[] => {
   return [...mockGenerationRecords]
 }

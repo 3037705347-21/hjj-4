@@ -20,7 +20,7 @@ import {
 } from 'lucide-vue-next'
 import type { DocumentTemplate, TemplateType } from '@/types'
 import { TemplateType as TT, templateTypeMap, OutputFormat, outputFormatMap } from '@/types'
-import { getTemplates, deleteTemplate, createDefaultTemplate, updateTemplate, getGenerationRecordsByTemplateId } from '@/mock/documentTemplates'
+import { getTemplates, deleteTemplate, createDefaultTemplate, updateTemplate, getGenerationRecordsByTemplateId, duplicateTemplate as duplicateTemplateInMock } from '@/mock/documentTemplates'
 
 const router = useRouter()
 
@@ -140,17 +140,7 @@ const handleDelete = () => {
 }
 
 const duplicateTemplate = (template: DocumentTemplate) => {
-  const newTemplate = createDefaultTemplate(template.type, `${template.name} (副本)`)
-  newTemplate.contentSchema = JSON.parse(JSON.stringify(template.contentSchema))
-  newTemplate.enabledFields = [...template.enabledFields]
-  newTemplate.outputFormat = template.outputFormat
-  newTemplate.description = template.description ? `${template.description} (副本)` : ''
-  updateTemplate(newTemplate.templateId, {
-    contentSchema: newTemplate.contentSchema,
-    enabledFields: newTemplate.enabledFields,
-    outputFormat: newTemplate.outputFormat,
-    description: newTemplate.description,
-  })
+  duplicateTemplateInMock(template)
   loadTemplates()
 }
 

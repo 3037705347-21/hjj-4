@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   FileText,
@@ -21,6 +21,7 @@ import type { GenerationRecord, TemplateType } from '@/types'
 import { TemplateType as TT, templateTypeMap, OutputFormat, outputFormatMap } from '@/types'
 import { getGenerationRecords, getGenerationRecordsByCaseId, getGenerationRecordsByTemplateId } from '@/mock/documentTemplates'
 import { getTemplateById } from '@/mock/documentTemplates'
+import { mockCases } from '@/mock/data'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,13 +39,17 @@ const formatOptions = [
 ]
 
 onMounted(() => {
-  loadRecords()
-  if (route.query.templateId) {
-    filterTemplateId.value = route.query.templateId as string
-  }
   if (route.query.caseId) {
     filterCaseId.value = route.query.caseId as string
   }
+  if (route.query.templateId) {
+    filterTemplateId.value = route.query.templateId as string
+  }
+  loadRecords()
+})
+
+watch([filterCaseId, filterTemplateId], () => {
+  loadRecords()
 })
 
 const loadRecords = () => {
@@ -172,15 +177,22 @@ const stats = computed(() => {
   const total = records.value.length
   const excelCount = records.value.filter(r => r.outputFormat === OutputFormat.EXCEL).length
   const pdfCount = records.value.filter(r => r.outputFormat === OutputFormat.PDF).length
+  const wordCount = records.value.filter(r => r.outputFormat === OutputFormat.WORD).length
   const todayCount = records.value.filter(r => {
     const today = new Date().toISOString().split('T')[0]
     return r.generatedAt.startsWith(today)
   }).length
-  return { total, excelCount, pdfCount, todayCount }
+  return { total, excelCount, pdfCount, wordCount, todayCount }
 })
 
 const hasActiveFilters = computed(() => {
   return searchKeyword.value || filterTemplateId.value !== 'all' || filterCaseId.value !== 'all' || filterFormat.value !== 'all'
+})
+
+const currentCaseName = computed(() => {
+  if (filterCaseId.value === 'all') return ''
+  const c = mockCases.find(c => c.id === filterCaseId.value)
+  return c ? c.name : ''
 })
 </script>
 
@@ -203,7 +215,9 @@ const hasActiveFilters = computed(() => {
               </div>
               <div>
                 <h1 class="text-xl font-bold text-gray-900">生成记录</h1>
-                <p class="text-sm text-gray-500">查看所有文书生成历史记录</p>
+                <p class="text-sm text-gray-500">
+                  {{ currentCaseName ? `${currentCaseName} - 文书生成记录` : '查看所有文书生成历史记录' }}
+                </p>
               </div>
             </div>
           </div>
@@ -212,7 +226,7 @@ const hasActiveFilters = computed(() => {
     </header>
 
     <main class="max-w-[1600px] mx-auto px-6 py-6">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div class="bg-white rounded-xl border border-gray-200 p-4">
           <p class="text-xs text-gray-500 mb-1">总记录数</p>
           <p class="text-2xl font-bold text-gray-900">{{ stats.total }}</p>
@@ -228,6 +242,10 @@ const hasActiveFilters = computed(() => {
         <div class="bg-white rounded-xl border border-gray-200 p-4">
           <p class="text-xs text-gray-500 mb-1">PDF 文档</p>
           <p class="text-2xl font-bold text-red-600">{{ stats.pdfCount }}</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <p class="text-xs text-gray-500 mb-1">Word 文档</p>
+          <p class="text-2xl font-bold text-indigo-600">{{ stats.wordCount }}</p>
         </div>
       </div>
 

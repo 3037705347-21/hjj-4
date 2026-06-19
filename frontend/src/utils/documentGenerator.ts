@@ -77,6 +77,8 @@ export const generateDocument = (options: GenerateDocumentOptions): GenerationRe
     generateExcel(caseInfo, filteredMaterials, template, activeFields)
   } else if (template.outputFormat === OutputFormat.PDF) {
     generatePDF(caseInfo, filteredMaterials, template, activeFields)
+  } else if (template.outputFormat === OutputFormat.WORD) {
+    generateWord(caseInfo, filteredMaterials, template, activeFields)
   }
 
   const fileName = generateFileName(caseInfo, template)
@@ -231,6 +233,80 @@ const generatePDF = (
 
   const fileName = generateFileName(caseInfo, template)
   doc.save(fileName)
+}
+
+const generateWord = (
+  caseInfo: Case,
+  materials: FlatMaterialItem[],
+  template: DocumentTemplate,
+  activeFields: ContentSchemaField[]
+) => {
+  const caseFields = activeFields.filter(f => f.source === 'case')
+  const materialFields = activeFields.filter(f => f.source === 'material')
+
+  let html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: 'SimSun', '宋体', serif; font-size: 12pt; }
+  h1 { text-align: center; font-size: 18pt; font-weight: bold; margin: 20pt 0 10pt; }
+  h2 { font-size: 14pt; font-weight: bold; margin: 16pt 0 8pt; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; }
+  th, td { border: 1pt solid #333; padding: 6pt 8pt; font-size: 10.5pt; }
+  th { background-color: #3B82F6; color: #fff; font-weight: bold; }
+  tr:nth-child(even) { background-color: #F9FAFB; }
+  .info-row { margin: 4pt 0; }
+  .info-label { font-weight: bold; display: inline-block; min-width: 80pt; }
+  .footer { margin-top: 20pt; font-size: 9pt; color: #888; text-align: center; border-top: 1pt solid #ddd; padding-top: 8pt; }
+</style>
+</head>
+<body>`
+
+  html += `<h1>${template.contentSchema.title}</h1>`
+  html += `<p style="text-align:center; font-size:10pt; color:#888;">生成时间：${new Date().toLocaleString('zh-CN')}</p>`
+
+  if (caseFields.length > 0) {
+    html += `<h2>案件信息</h2>`
+    caseFields.forEach(field => {
+      const value = getCaseFieldValue(caseInfo, field.key)
+      html += `<div class="info-row"><span class="info-label">${field.label}：</span>${value}</div>`
+    })
+  }
+
+  if (materialFields.length > 0 && materials.length > 0) {
+    html += `<h2>${template.contentSchema.title}</h2>`
+    html += `<table><thead><tr>`
+    materialFields.forEach(f => {
+      html += `<th>${f.label}</th>`
+    })
+    html += `</tr></thead><tbody>`
+    materials.forEach((item, index) => {
+      html += `<tr>`
+      materialFields.forEach(field => {
+        const value = getMaterialFieldValue(item, field.key, index)
+        html += `<td>${value}</td>`
+      })
+      html += `</tr>`
+    })
+    html += `</tbody></table>`
+  }
+
+  if (template.contentSchema.includeFooter) {
+    html += `<div class="footer">${caseInfo.caseNumber} · ${template.name}</div>`
+  }
+
+  html += `</body></html>`
+
+  const fileName = generateFileName(caseInfo, template)
+  const blob = new Blob(['\ufeff' + html], { type: 'application/msword' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
 
 export const generateDocumentByCaseId = (
