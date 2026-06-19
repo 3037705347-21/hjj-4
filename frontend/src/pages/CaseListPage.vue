@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   ClipboardList,
   History,
+  MessageSquare,
 } from 'lucide-vue-next'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
@@ -36,6 +37,10 @@ const goToCalendar = () => {
 
 const goToTimeline = () => {
   router.push({ name: 'case-timeline' })
+}
+
+const goToCommunications = () => {
+  router.push({ name: 'communication-list' })
 }
 
 const cases = ref<Case[]>([...mockCases])
@@ -170,6 +175,13 @@ const cancelDelete = () => {
             >
               <CalendarDays class="w-5 h-5 text-red-600" />
               庭期日历
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToCommunications"
+            >
+              <MessageSquare class="w-5 h-5 text-teal-600" />
+              沟通记录
             </button>
             <button
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"

@@ -240,3 +240,71 @@ export const caseEventStatusMap: Record<CaseEventStatus, { label: string; class:
     class: 'bg-red-100 text-red-800 border-red-200',
   },
 }
+
+export enum ContactType {
+  PHONE = 'phone',
+  MEETING = 'meeting',
+  WECHAT = 'wechat',
+  EMAIL = 'email',
+  MATERIAL_REMINDER = 'material_reminder',
+}
+
+export interface CommunicationRecord {
+  recordId: string
+  caseId: string
+  contactType: ContactType
+  contactDate: string
+  participants: string
+  summary: string
+  nextAction: string
+  relatedMaterials: string[]
+  creator: string
+  createdAt: string
+  updatedAt: string
+  isFollowedUp: boolean
+  followedUpAt?: string
+}
+
+export const contactTypeMap: Record<ContactType, { label: string; class: string; dotClass: string; icon: string }> = {
+  [ContactType.PHONE]: {
+    label: '来电',
+    class: 'bg-green-100 text-green-800 border-green-200',
+    dotClass: 'bg-green-500',
+    icon: 'phone',
+  },
+  [ContactType.MEETING]: {
+    label: '面谈',
+    class: 'bg-blue-100 text-blue-800 border-blue-200',
+    dotClass: 'bg-blue-500',
+    icon: 'users',
+  },
+  [ContactType.WECHAT]: {
+    label: '微信',
+    class: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    dotClass: 'bg-emerald-500',
+    icon: 'message-circle',
+  },
+  [ContactType.EMAIL]: {
+    label: '邮件',
+    class: 'bg-purple-100 text-purple-800 border-purple-200',
+    dotClass: 'bg-purple-500',
+    icon: 'mail',
+  },
+  [ContactType.MATERIAL_REMINDER]: {
+    label: '催材料',
+    class: 'bg-amber-100 text-amber-800 border-amber-200',
+    dotClass: 'bg-amber-500',
+    icon: 'file-warning',
+  },
+}
+
+export interface CommunicationSummary {
+  total: number
+  phone: number
+  meeting: number
+  wechat: number
+  email: number
+  materialReminder: number
+  pendingFollowUp: number
+  recentRecords: CommunicationRecord[]
+}

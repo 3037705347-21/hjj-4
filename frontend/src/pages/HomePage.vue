@@ -12,6 +12,7 @@ import {
   ClipboardList,
   CalendarDays,
   History,
+  MessageSquare,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -30,6 +31,10 @@ const goToCalendar = () => {
 
 const goToTimeline = () => {
   router.push({ name: 'case-timeline' })
+}
+
+const goToCommunications = () => {
+  router.push({ name: 'communication-list' })
 }
 
 const features = [
@@ -75,6 +80,12 @@ const features = [
     description: '多位律师可协同管理同一案件材料，实时同步更新状态',
     color: 'orange',
   },
+  {
+    icon: MessageSquare,
+    title: '客户沟通记录',
+    description: '沉淀案件办理过程中的来电、面谈、微信、邮件和催材料记录，支持时间轴视图和多维度筛选',
+    color: 'teal',
+  },
 ]
 
 const colorMap: Record<string, string> = {
@@ -85,6 +96,7 @@ const colorMap: Record<string, string> = {
   orange: 'bg-orange-50 text-orange-600',
   red: 'bg-red-50 text-red-600',
   cyan: 'bg-cyan-50 text-cyan-600',
+  teal: 'bg-teal-50 text-teal-600',
 }
 </script>
 
@@ -122,6 +134,13 @@ const colorMap: Record<string, string> = {
           >
             <CalendarDays class="w-4 h-4" />
             庭期日历
+          </button>
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToCommunications"
+          >
+            <MessageSquare class="w-4 h-4" />
+            沟通记录
           </button>
           <button
             class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"

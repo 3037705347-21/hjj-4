@@ -25,11 +25,17 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
+  MessageSquare,
+  FileText as FileTextIcon,
+  Plus,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
 import CaseTaskSection from '@/components/CaseTaskSection.vue'
 import CaseEventSummary from '@/components/CaseEventSummary.vue'
+import CommunicationRecordSummary from '@/components/CommunicationRecordSummary.vue'
+import CommunicationRecordList from '@/components/CommunicationRecordList.vue'
+import CommunicationRecordFormModal from '@/components/CommunicationRecordFormModal.vue'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { getTemplateByCaseType } from '@/mock/materialTemplates'
 import { computeTaskSummary, refreshOverdueTasks } from '@/mock/tasks'
@@ -45,6 +51,8 @@ import {
   getAvailableTransitions,
   type MaterialCompletenessResult,
 } from '@/utils/caseWorkflow'
+
+type DetailTab = 'case-info' | 'communication'
 
 const route = useRoute()
 const router = useRouter()
@@ -77,6 +85,16 @@ const showCompletedList = ref(true)
 const showMissingList = ref(true)
 
 const statusHistory = ref<StatusChangeRecord[]>([])
+
+const activeTab = ref<DetailTab>('case-info')
+const showCommunicationForm = ref(false)
+const communicationFormMode = ref<'create' | 'edit'>('create')
+const editingCommunicationRecordId = ref<string | null>(null)
+
+const tabs: Array<{ key: DetailTab; label: string; icon: any }> = [
+  { key: 'case-info', label: '案件详情', icon: FileTextIcon },
+  { key: 'communication', label: '沟通记录', icon: MessageSquare },
+]
 
 const handleKeydown = (e: KeyboardEvent) => {
   if (!isEditing.value) return
@@ -481,6 +499,26 @@ const goToTimeline = () => {
   if (!currentCase.value) return
   router.push({ name: 'case-timeline', query: { caseId: currentCase.value.id } })
 }
+
+const openCreateCommunication = () => {
+  communicationFormMode.value = 'create'
+  editingCommunicationRecordId.value = null
+  showCommunicationForm.value = true
+}
+
+const handleCommunicationFormSubmit = () => {
+  showCommunicationForm.value = false
+  editingCommunicationRecordId.value = null
+}
+
+const handleCommunicationFormCancel = () => {
+  showCommunicationForm.value = false
+  editingCommunicationRecordId.value = null
+}
+
+const goToCommunicationList = () => {
+  activeTab.value = 'communication'
+}
 </script>
 
 <template>
@@ -622,6 +660,42 @@ const goToTimeline = () => {
         <p class="text-sm text-gray-600 leading-relaxed">{{ currentCase.description }}</p>
       </div>
 
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
+        <div class="border-b border-gray-200">
+          <div class="flex">
+            <button
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative"
+              :class="[
+                activeTab === tab.key
+                  ? 'text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              ]"
+              @click="activeTab = tab.key"
+            >
+              <component :is="tab.icon" class="w-4 h-4" />
+              {{ tab.label }}
+              <span
+                v-if="tab.key === 'communication'"
+                class="absolute top-2 right-4 w-2 h-2 bg-amber-500 rounded-full"
+                v-show="false"
+              ></span>
+            </button>
+          </div>
+          <div class="h-0.5 bg-gray-100">
+            <div
+              class="h-full bg-blue-600 transition-all duration-300"
+              :style="{
+                width: '50%',
+                marginLeft: activeTab === 'case-info' ? '0%' : '50%'
+              }"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="activeTab === 'case-info'">
       <div v-if="hasTemplate" class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
         <button
           class="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
@@ -1067,6 +1141,38 @@ const goToTimeline = () => {
         :materials="currentMaterials"
         class="mt-6"
       />
+      </div>
+
+      <div v-show="activeTab === 'communication'">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <MessageSquare class="w-5 h-5 text-cyan-600" />
+            客户沟通记录
+          </h2>
+          <button
+            class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            @click="openCreateCommunication"
+          >
+            <Plus class="w-4 h-4" />
+            新增记录
+          </button>
+        </div>
+
+        <CommunicationRecordSummary
+          v-if="currentCase"
+          :case-id="currentCase.id"
+          class="mb-6"
+          @go-to-communication-list="goToCommunicationList"
+        />
+
+        <CommunicationRecordList
+          v-if="currentCase"
+          :case-id="currentCase.id"
+          :show-stats="false"
+          :show-add-button="false"
+          class="mb-6"
+        />
+      </div>
     </div>
 
     <div
@@ -1361,6 +1467,18 @@ const goToTimeline = () => {
           </div>
         </div>
       </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <CommunicationRecordFormModal
+        v-if="showCommunicationForm && currentCase"
+        :visible="showCommunicationForm"
+        :mode="communicationFormMode"
+        :case-id="currentCase.id"
+        :record-id="editingCommunicationRecordId"
+        @submit="handleCommunicationFormSubmit"
+        @cancel="handleCommunicationFormCancel"
+      />
     </Teleport>
     </template>
   </div>
