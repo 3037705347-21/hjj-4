@@ -10,16 +10,27 @@ import {
   Calendar,
   Briefcase,
   ChevronRight,
+  Edit3,
+  Trash2,
 } from 'lucide-vue-next'
-import { mockCases, caseStatusMap } from '@/mock/data'
+import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
-import type { Case, CaseStatus } from '@/types'
+import { CaseStatus } from '@/types'
+import type { Case, CaseStatus as CaseStatusType } from '@/types'
+import CaseFormModal from '@/components/CaseFormModal.vue'
 
 const router = useRouter()
 
-const cases = ref<Case[]>(mockCases)
+const cases = ref<Case[]>([...mockCases])
 const searchQuery = ref('')
-const statusFilter = ref<CaseStatus | 'all'>('all')
+const statusFilter = ref<CaseStatusType | 'all'>('all')
+
+const showFormModal = ref(false)
+const formMode = ref<'create' | 'edit'>('create')
+const editingCase = ref<Case | null>(null)
+
+const showDeleteConfirm = ref(false)
+const deletingCase = ref<Case | null>(null)
 
 const filteredCases = computed(() => {
   return cases.value.filter(c => {
@@ -39,6 +50,67 @@ const goToDetail = (caseItem: Case) => {
 }
 
 const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
+
+const handleCreate = () => {
+  formMode.value = 'create'
+  editingCase.value = null
+  showFormModal.value = true
+}
+
+const handleEdit = (caseItem: Case, event: MouseEvent) => {
+  event.stopPropagation()
+  formMode.value = 'edit'
+  editingCase.value = caseItem
+  showFormModal.value = true
+}
+
+const handleFormSubmit = (data: Omit<Case, 'id' | 'materials'> & { id?: string }) => {
+  if (formMode.value === 'create') {
+    const newCase: Case = {
+      ...data,
+      id: generateId(),
+      materials: [],
+    }
+    cases.value = [...cases.value, newCase]
+    const idx = mockCases.findIndex(c => c.id === newCase.id)
+    if (idx === -1) {
+      mockCases.push(newCase)
+    }
+  } else {
+    const id = data.id!
+    cases.value = cases.value.map(c =>
+      c.id === id ? { ...c, ...data, id } : c
+    )
+    const idx = mockCases.findIndex(c => c.id === id)
+    if (idx !== -1) {
+      mockCases[idx] = { ...mockCases[idx], ...data, id }
+    }
+  }
+  showFormModal.value = false
+}
+
+const confirmDelete = (caseItem: Case, event: MouseEvent) => {
+  event.stopPropagation()
+  deletingCase.value = caseItem
+  showDeleteConfirm.value = true
+}
+
+const executeDelete = () => {
+  if (!deletingCase.value) return
+  const id = deletingCase.value.id
+  cases.value = cases.value.filter(c => c.id !== id)
+  const idx = mockCases.findIndex(c => c.id === id)
+  if (idx !== -1) {
+    mockCases.splice(idx, 1)
+  }
+  showDeleteConfirm.value = false
+  deletingCase.value = null
+}
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  deletingCase.value = null
+}
 </script>
 
 <template>
@@ -50,7 +122,10 @@ const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
             <h1 class="text-2xl font-bold text-gray-900">案件管理</h1>
             <p class="mt-1 text-sm text-gray-500">管理所有案件及其材料档案</p>
           </div>
-          <button class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            @click="handleCreate"
+          >
             <Plus class="w-5 h-5" />
             新建案件
           </button>
@@ -78,7 +153,7 @@ const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
             </div>
             <div>
               <p class="text-sm text-gray-500">待处理</p>
-              <p class="text-2xl font-bold text-gray-900">{{ cases.filter(c => c.status === 'pending').length }}</p>
+              <p class="text-2xl font-bold text-gray-900">{{ cases.filter(c => c.status === CaseStatus.PENDING).length }}</p>
             </div>
           </div>
         </div>
@@ -89,7 +164,7 @@ const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
             </div>
             <div>
               <p class="text-sm text-gray-500">进行中</p>
-              <p class="text-2xl font-bold text-gray-900">{{ cases.filter(c => c.status === 'in_progress').length }}</p>
+              <p class="text-2xl font-bold text-gray-900">{{ cases.filter(c => c.status === CaseStatus.IN_PROGRESS).length }}</p>
             </div>
           </div>
         </div>
@@ -100,7 +175,7 @@ const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
             </div>
             <div>
               <p class="text-sm text-gray-500">已结案</p>
-              <p class="text-2xl font-bold text-gray-900">{{ cases.filter(c => c.status === 'closed').length }}</p>
+              <p class="text-2xl font-bold text-gray-900">{{ cases.filter(c => c.status === CaseStatus.CLOSED).length }}</p>
             </div>
           </div>
         </div>
@@ -177,7 +252,23 @@ const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
                   </span>
                 </div>
               </div>
-              <ChevronRight class="w-5 h-5 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
+              <div class="flex items-center gap-1 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="编辑"
+                  @click="handleEdit(caseItem, $event)"
+                >
+                  <Edit3 class="w-4 h-4" />
+                </button>
+                <button
+                  class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="删除"
+                  @click="confirmDelete(caseItem, $event)"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
+                <ChevronRight class="w-5 h-5 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all ml-1" />
+              </div>
             </div>
           </div>
 
@@ -191,5 +282,42 @@ const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
         </div>
       </div>
     </main>
+
+    <CaseFormModal
+      :visible="showFormModal"
+      :mode="formMode"
+      :case-data="editingCase"
+      @close="showFormModal = false"
+      @submit="handleFormSubmit"
+    />
+
+    <Teleport to="body">
+      <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50" @click="cancelDelete"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+          <h3 class="text-lg font-bold text-gray-900 mb-2">确认删除</h3>
+          <p class="text-sm text-gray-600 mb-1">
+            确定要删除案件「<span class="font-semibold text-gray-900">{{ deletingCase?.name }}</span>」吗？
+          </p>
+          <p class="text-sm text-red-600 mb-6">
+            删除后，该案件的所有材料数据将被同步移除，此操作不可恢复。
+          </p>
+          <div class="flex items-center justify-end gap-3">
+            <button
+              class="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+              @click="cancelDelete"
+            >
+              取消
+            </button>
+            <button
+              class="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm font-medium"
+              @click="executeDelete"
+            >
+              确认删除
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

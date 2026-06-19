@@ -75,7 +75,18 @@ const folderCount = computed(() => {
 </script>
 
 <template>
-  <div v-if="currentCase" class="min-h-screen bg-gray-50">
+  <div class="min-h-screen bg-gray-50">
+    <div v-if="!currentCase" class="flex flex-col items-center justify-center py-32">
+      <FileText class="w-16 h-16 text-gray-300 mb-4" />
+      <p class="text-lg text-gray-500 mb-2">案件不存在或已被删除</p>
+      <button
+        class="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+        @click="goBack"
+      >
+        返回案件列表
+      </button>
+    </div>
+    <template v-else>
     <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
       <div class="max-w-[1600px] mx-auto px-6 py-4">
         <div class="flex items-center justify-between gap-4">
@@ -305,9 +316,10 @@ const folderCount = computed(() => {
     </div>
 
     <div
-      v-if="showExportMenu"
+      v-if="showExportMenu && currentCase"
       class="fixed inset-0 z-10"
       @click="showExportMenu = false"
     ></div>
+    </template>
   </div>
 </template>
