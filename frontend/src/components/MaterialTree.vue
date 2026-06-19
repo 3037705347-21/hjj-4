@@ -38,6 +38,8 @@ import {
   updateNodesByIds,
   getAllFolderNodes,
   getNodePath,
+  hasDuplicateName,
+  findParentNode,
 } from '@/utils/treeUtils'
 import type { FilterOptions } from '@/utils/treeUtils'
 
@@ -326,10 +328,30 @@ const handleAdd = (parentId: string | null, type: MaterialNodeType) => {
 
 const handleRename = (node: MaterialNode) => {
   const newName = prompt('请输入新名称：', node.name)
-  if (newName && newName.trim()) {
-    localMaterials.value = updateNodeById(localMaterials.value, node.id, { name: newName.trim() })
-    emit('update:materials', localMaterials.value)
+  if (newName === null) return
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    alert('名称不能为空')
+    return
   }
+
+  if (trimmedName !== newName) {
+    alert('名称不能包含首尾空格')
+    return
+  }
+
+  if (trimmedName === node.name) return
+
+  const parent = findParentNode(localMaterials.value, node.id)
+  const parentId = parent ? parent.id : null
+  if (hasDuplicateName(localMaterials.value, parentId, trimmedName, node.id)) {
+    alert('当前父级下已存在同名节点')
+    return
+  }
+
+  localMaterials.value = updateNodeById(localMaterials.value, node.id, { name: trimmedName })
+  emit('update:materials', localMaterials.value)
 }
 
 const handleDelete = (node: MaterialNode) => {
@@ -504,9 +526,14 @@ const setSelectedNode = (node: MaterialNode) => {
   emit('select', node)
 }
 
+const setSelectedNodeId = (nodeId: string) => {
+  selectedNodeId.value = nodeId
+}
+
 defineExpose({
   getMaterials: () => localMaterials.value,
   setSelectedNode,
+  setSelectedNodeId,
   getSelectedIds: () => Array.from(selectedNodeIds.value),
   getSelectedNodes: () => selectedNodes.value,
 })

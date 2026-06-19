@@ -22,7 +22,7 @@ import MaterialTree from '@/components/MaterialTree.vue'
 import { mockCases, caseStatusMap } from '@/mock/data'
 import type { Case, MaterialNode } from '@/types'
 import { MaterialNodeType as NodeType } from '@/types'
-import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes } from '@/utils/treeUtils'
+import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 const route = useRoute()
@@ -93,6 +93,9 @@ const handleSelectNode = (node: MaterialNode | null) => {
       if (confirm('有未保存的更改，确定要切换节点吗？')) {
         cancelEdit()
       } else {
+        if (selectedNode.value && treeRef.value) {
+          treeRef.value.setSelectedNodeId(selectedNode.value.id)
+        }
         return
       }
     } else {
@@ -171,7 +174,7 @@ const validateForm = (): boolean => {
     errors.name = '名称不能为空'
   } else if (form.name.trim() !== form.name) {
     errors.name = '名称不能包含首尾空格'
-  } else if (originalNode.value && form.name !== originalNode.value.name) {
+  } else if (originalNode.value && form.name.trim() !== originalNode.value.name) {
     const parent = findParentNode(currentMaterials.value, originalNode.value.id)
     const parentId = parent ? parent.id : null
     if (hasDuplicateName(currentMaterials.value, parentId, form.name.trim(), originalNode.value.id)) {
@@ -206,10 +209,12 @@ const saveEdit = () => {
 
   currentMaterials.value = updateNodeById(currentMaterials.value, originalNode.value.id, updates)
 
-  const updatedNode = { ...selectedNode.value, ...updates }
-  selectedNode.value = updatedNode
-  if (treeRef.value) {
-    treeRef.value.setSelectedNode(updatedNode)
+  const updatedNode = findNodeById(currentMaterials.value, originalNode.value.id)
+  if (updatedNode) {
+    selectedNode.value = updatedNode
+    if (treeRef.value) {
+      treeRef.value.setSelectedNode(updatedNode)
+    }
   }
 
   handleMaterialsUpdate(currentMaterials.value)
