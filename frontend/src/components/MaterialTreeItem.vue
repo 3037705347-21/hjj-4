@@ -22,15 +22,20 @@ interface Props {
   selectedNodeId: string | null
   matchedNodeIds?: Set<string>
   level?: number
+  multiSelectMode?: boolean
+  selectedNodeIds?: Set<string>
 }
 
 const props = withDefaults(defineProps<Props>(), {
   level: 0,
   matchedNodeIds: () => new Set<string>(),
+  multiSelectMode: false,
+  selectedNodeIds: () => new Set<string>(),
 })
 
 const emit = defineEmits<{
-  (e: 'select', node: MaterialNode): void
+  (e: 'select', node: MaterialNode, ctrlKey?: boolean, shiftKey?: boolean): void
+  (e: 'toggleSelect', nodeId: string): void
   (e: 'toggleExpand', nodeId: string): void
   (e: 'add', parentId: string | null, type: MaterialNodeType): void
   (e: 'rename', node: MaterialNode): void
@@ -52,8 +57,17 @@ const handleToggle = (e: Event, node: MaterialNode) => {
   }
 }
 
-const handleSelect = (node: MaterialNode) => {
-  emit('select', node)
+const handleSelect = (e: MouseEvent, node: MaterialNode) => {
+  if (props.multiSelectMode) {
+    emit('select', node, e.ctrlKey || e.metaKey, e.shiftKey)
+  } else {
+    emit('select', node)
+  }
+}
+
+const handleCheckboxClick = (e: Event, nodeId: string) => {
+  e.stopPropagation()
+  emit('toggleSelect', nodeId)
 }
 
 const handleAdd = (e: Event, parentId: string | null, type: MaterialNodeType) => {
@@ -119,7 +133,12 @@ const handleRootDrop = (e: DragEvent) => {
   dragOverState.value = { nodeId: null, position: null }
 }
 
-const isSelected = (nodeId: string) => props.selectedNodeId === nodeId
+const isSelected = (nodeId: string) => {
+  if (props.multiSelectMode) {
+    return props.selectedNodeIds?.has(nodeId) || false
+  }
+  return props.selectedNodeId === nodeId
+}
 
 const isMatched = (nodeId: string) => props.matchedNodeIds?.has(nodeId)
 
@@ -154,13 +173,36 @@ const getDropClass = (node: MaterialNode) => {
           getDropClass(node),
         ]"
         :style="{ paddingLeft: `${level * 20 + 8}px` }"
-        @click="handleSelect(node)"
+        @click="(e) => handleSelect(e, node)"
         draggable="true"
         @dragstart="(e) => handleDragStart(e, node)"
         @dragover="(e) => handleDragOver(e, node)"
         @dragleave="handleDragLeave"
         @drop="(e) => handleDrop(e, node)"
       >
+        <button
+          v-if="multiSelectMode"
+          class="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+          @click="(e) => handleCheckboxClick(e, node.id)"
+        >
+          <div
+            class="w-4 h-4 border-2 rounded transition-colors flex items-center justify-center"
+            :class="isSelected(node.id) ? 'bg-blue-500 border-blue-500' : 'border-gray-300'"
+          >
+            <svg
+              v-if="isSelected(node.id)"
+              class="w-3 h-3 text-white"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </div>
+        </button>
         <button
           v-if="node.type === MaterialNodeType.FOLDER"
           class="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 transition-colors flex-shrink-0"
@@ -175,7 +217,7 @@ const getDropClass = (node: MaterialNode) => {
             class="w-4 h-4 text-gray-500"
           />
         </button>
-        <span v-else class="w-5 flex-shrink-0"></span>
+        <span v-else-if="!multiSelectMode" class="w-5 flex-shrink-0"></span>
 
         <FolderOpen
           v-if="node.type === MaterialNodeType.FOLDER && node.expanded"
@@ -240,8 +282,11 @@ const getDropClass = (node: MaterialNode) => {
         :nodes="node.children"
         :selected-node-id="selectedNodeId"
         :matched-node-ids="matchedNodeIds"
+        :multi-select-mode="multiSelectMode"
+        :selected-node-ids="selectedNodeIds"
         :level="level + 1"
-        @select="(n) => emit('select', n)"
+        @select="(n, c, s) => emit('select', n, c, s)"
+        @toggle-select="(id) => emit('toggleSelect', id)"
         @toggle-expand="(id) => emit('toggleExpand', id)"
         @add="(pid, t) => emit('add', pid, t)"
         @rename="(n) => emit('rename', n)"

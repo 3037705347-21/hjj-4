@@ -22,7 +22,7 @@ import MaterialTree from '@/components/MaterialTree.vue'
 import { mockCases, caseStatusMap } from '@/mock/data'
 import type { Case, MaterialNode } from '@/types'
 import { MaterialNodeType as NodeType } from '@/types'
-import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName } from '@/utils/treeUtils'
+import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 const route = useRoute()
@@ -132,6 +132,20 @@ const folderCount = computed(() => {
 
 const handleFilteredCount = (counts: { files: number; folders: number }) => {
   filteredCounts.value = counts
+}
+
+const handleBatchExport = (selectedIds: string[], format: 'excel' | 'pdf') => {
+  if (!currentCase.value) return
+  const flatMaterials = flattenSelectedNodes(currentMaterials.value, selectedIds)
+  const exportCase = { ...currentCase.value, materials: currentMaterials.value }
+  if (format === 'excel') {
+    exportToExcel(exportCase, flatMaterials)
+  } else {
+    exportToPDF(exportCase, flatMaterials)
+  }
+}
+
+const handleMultiSelectChange = (_nodes: MaterialNode[]) => {
 }
 
 const startEdit = () => {
@@ -381,6 +395,8 @@ const hasChanges = computed(() => {
             @update:materials="handleMaterialsUpdate"
             @select="handleSelectNode"
             @filtered-count="handleFilteredCount"
+            @multi-select-change="handleMultiSelectChange"
+            @batch-export="handleBatchExport"
           />
         </div>
 

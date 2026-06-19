@@ -1,11 +1,44 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { FolderPlus, FilePlus, RotateCcw, Filter, X, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import {
+  FolderPlus,
+  FilePlus,
+  RotateCcw,
+  Filter,
+  X,
+  ChevronDown,
+  ChevronUp,
+  ListChecks,
+  Trash2,
+  ArrowRightLeft,
+  MessageSquare,
+  FileDown,
+  CheckSquare,
+  Square,
+  FolderOpen,
+  Folder,
+  FileSpreadsheet,
+  FileText,
+} from 'lucide-vue-next'
 import MaterialTreeItem from './MaterialTreeItem.vue'
 import type { MaterialNode } from '@/types'
 import { MaterialNodeType } from '@/types'
 import { generateId } from '@/mock/data'
-import { filterMaterialTree, getAllUploaders, countFiles, findNodeById } from '@/utils/treeUtils'
+import {
+  filterMaterialTree,
+  getAllUploaders,
+  findNodeById,
+  removeNodeById,
+  addChildNode,
+  updateNodeById,
+  isDescendant,
+  removeNodesByIds,
+  getNodesByIds,
+  isDescendantOfAny,
+  updateNodesByIds,
+  getAllFolderNodes,
+  getNodePath,
+} from '@/utils/treeUtils'
 import type { FilterOptions } from '@/utils/treeUtils'
 
 interface Props {
@@ -18,12 +51,25 @@ const emit = defineEmits<{
   (e: 'update:materials', materials: MaterialNode[]): void
   (e: 'select', node: MaterialNode | null): void
   (e: 'filtered-count', counts: { files: number; folders: number }): void
+  (e: 'multi-select-change', nodes: MaterialNode[]): void
+  (e: 'batch-export', selectedIds: string[], format: 'excel' | 'pdf'): void
 }>()
 
 const localMaterials = ref<MaterialNode[]>([...props.materials])
 const selectedNodeId = ref<string | null>(null)
 const draggingNodeId = ref<string | null>(null)
 const showFilterPanel = ref(false)
+const multiSelectMode = ref(false)
+const selectedNodeIds = ref<Set<string>>(new Set())
+const lastSelectedId = ref<string | null>(null)
+
+const showMoveDialog = ref(false)
+const moveTargetFolderId = ref<string | null>(null)
+
+const showRemarkDialog = ref(false)
+const batchRemark = ref('')
+
+const showExportMenu = ref(false)
 
 const filterOptions = ref<FilterOptions>({
   nameKeyword: '',
@@ -71,6 +117,24 @@ const matchedNodeIds = computed(() => {
   return ids
 })
 
+const selectedNodes = computed(() => {
+  return getNodesByIds(localMaterials.value, Array.from(selectedNodeIds.value))
+})
+
+const selectedFileCount = computed(() => {
+  return selectedNodes.value.filter(n => n.type === MaterialNodeType.FILE).length
+})
+
+const selectedFolderCount = computed(() => {
+  return selectedNodes.value.filter(n => n.type === MaterialNodeType.FOLDER).length
+})
+
+const availableMoveTargets = computed(() => {
+  const allFolders = getAllFolderNodes(localMaterials.value)
+  const selectedIds = Array.from(selectedNodeIds.value)
+  return allFolders.filter(folder => !isDescendantOfAny(localMaterials.value, folder.id, selectedIds))
+})
+
 watch(filteredMaterials, (filtered) => {
   let fileCount = 0
   let folderCount = 0
@@ -94,6 +158,11 @@ watch(() => props.materials, (newMaterials) => {
   localMaterials.value = [...newMaterials]
 }, { deep: true })
 
+watch(selectedNodeIds, (newIds) => {
+  const nodes = getNodesByIds(localMaterials.value, Array.from(newIds))
+  emit('multi-select-change', nodes)
+}, { deep: true })
+
 const clearFilters = () => {
   filterOptions.value = {
     nameKeyword: '',
@@ -107,6 +176,14 @@ const clearFilters = () => {
 
 const toggleFilterPanel = () => {
   showFilterPanel.value = !showFilterPanel.value
+}
+
+const toggleMultiSelectMode = () => {
+  multiSelectMode.value = !multiSelectMode.value
+  if (!multiSelectMode.value) {
+    selectedNodeIds.value = new Set()
+    lastSelectedId.value = null
+  }
 }
 
 const addRootFolder = () => {
@@ -135,10 +212,72 @@ const addRootFile = () => {
   emit('update:materials', localMaterials.value)
 }
 
-const handleSelect = (node: MaterialNode) => {
-  selectedNodeId.value = node.id
-  const originalNode = findNodeById(localMaterials.value, node.id)
-  emit('select', originalNode || node)
+const getAllVisibleNodeIds = (): string[] => {
+  const ids: string[] = []
+  const traverse = (nodes: MaterialNode[]) => {
+    for (const node of nodes) {
+      ids.push(node.id)
+      if (node.children && node.expanded && node.type === MaterialNodeType.FOLDER) {
+        traverse(node.children)
+      }
+    }
+  }
+  traverse(filteredMaterials.value)
+  return ids
+}
+
+const handleSelect = (node: MaterialNode, ctrlKey?: boolean, shiftKey?: boolean) => {
+  if (multiSelectMode.value) {
+    if (shiftKey && lastSelectedId.value) {
+      const allIds = getAllVisibleNodeIds()
+      const lastIdx = allIds.indexOf(lastSelectedId.value)
+      const currentIdx = allIds.indexOf(node.id)
+      if (lastIdx !== -1 && currentIdx !== -1) {
+        const start = Math.min(lastIdx, currentIdx)
+        const end = Math.max(lastIdx, currentIdx)
+        const rangeIds = allIds.slice(start, end + 1)
+        const newSet = new Set(selectedNodeIds.value)
+        rangeIds.forEach(id => newSet.add(id))
+        selectedNodeIds.value = newSet
+      }
+    } else if (ctrlKey) {
+      const newSet = new Set(selectedNodeIds.value)
+      if (newSet.has(node.id)) {
+        newSet.delete(node.id)
+      } else {
+        newSet.add(node.id)
+      }
+      selectedNodeIds.value = newSet
+    } else {
+      selectedNodeIds.value = new Set([node.id])
+    }
+    lastSelectedId.value = node.id
+  } else {
+    selectedNodeId.value = node.id
+    const originalNode = findNodeById(localMaterials.value, node.id)
+    emit('select', originalNode || node)
+  }
+}
+
+const handleToggleSelect = (nodeId: string) => {
+  const newSet = new Set(selectedNodeIds.value)
+  if (newSet.has(nodeId)) {
+    newSet.delete(nodeId)
+  } else {
+    newSet.add(nodeId)
+  }
+  selectedNodeIds.value = newSet
+  lastSelectedId.value = nodeId
+}
+
+const selectAllVisible = () => {
+  const allIds = getAllVisibleNodeIds()
+  selectedNodeIds.value = new Set(allIds)
+}
+
+const clearSelection = () => {
+  selectedNodeIds.value = new Set()
+  lastSelectedId.value = null
 }
 
 const toggleExpand = (nodeId: string) => {
@@ -154,67 +293,6 @@ const toggleExpand = (nodeId: string) => {
     })
   }
   localMaterials.value = toggleInNodes(localMaterials.value)
-}
-
-const removeNodeById = (nodes: MaterialNode[], id: string): MaterialNode[] => {
-  return nodes
-    .filter(node => node.id !== id)
-    .map(node => ({
-      ...node,
-      children: node.children ? removeNodeById(node.children, id) : undefined,
-    }))
-}
-
-const addChildNode = (
-  nodes: MaterialNode[],
-  parentId: string | null,
-  newNode: MaterialNode
-): MaterialNode[] => {
-  if (parentId === null) {
-    return [...nodes, newNode]
-  }
-  return nodes.map(node => {
-    if (node.id === parentId) {
-      return {
-        ...node,
-        children: [...(node.children || []), newNode],
-        expanded: true,
-      }
-    }
-    if (node.children) {
-      return { ...node, children: addChildNode(node.children, parentId, newNode) }
-    }
-    return node
-  })
-}
-
-const updateNodeById = (
-  nodes: MaterialNode[],
-  id: string,
-  updates: Partial<MaterialNode>
-): MaterialNode[] => {
-  return nodes.map(node => {
-    if (node.id === id) {
-      return { ...node, ...updates }
-    }
-    if (node.children) {
-      return { ...node, children: updateNodeById(node.children, id, updates) }
-    }
-    return node
-  })
-}
-
-const isDescendant = (nodes: MaterialNode[], ancestorId: string, descendantId: string): boolean => {
-  const ancestor = findNodeById(nodes, ancestorId)
-  if (!ancestor || !ancestor.children) return false
-  const check = (children: MaterialNode[]): boolean => {
-    for (const child of children) {
-      if (child.id === descendantId) return true
-      if (child.children && check(child.children)) return true
-    }
-    return false
-  }
-  return check(ancestor.children)
 }
 
 const handleAdd = (parentId: string | null, type: MaterialNodeType) => {
@@ -238,8 +316,12 @@ const handleAdd = (parentId: string | null, type: MaterialNodeType) => {
 
   localMaterials.value = addChildNode(localMaterials.value, parentId, newNode)
   emit('update:materials', localMaterials.value)
-  selectedNodeId.value = newNode.id
-  emit('select', newNode)
+  if (multiSelectMode.value) {
+    selectedNodeIds.value = new Set([newNode.id])
+  } else {
+    selectedNodeId.value = newNode.id
+    emit('select', newNode)
+  }
 }
 
 const handleRename = (node: MaterialNode) => {
@@ -257,8 +339,107 @@ const handleDelete = (node: MaterialNode) => {
       selectedNodeId.value = null
       emit('select', null)
     }
+    if (selectedNodeIds.value.has(node.id)) {
+      const newSet = new Set(selectedNodeIds.value)
+      newSet.delete(node.id)
+      selectedNodeIds.value = newSet
+    }
     emit('update:materials', localMaterials.value)
   }
+}
+
+const handleBatchDelete = () => {
+  if (selectedNodeIds.value.size === 0) return
+
+  const fileCount = selectedFileCount.value
+  const folderCount = selectedFolderCount.value
+
+  let confirmText = '确定要删除选中的 '
+  const parts: string[] = []
+  if (fileCount > 0) parts.push(`${fileCount} 个文件`)
+  if (folderCount > 0) parts.push(`${folderCount} 个文件夹`)
+  confirmText += parts.join('、') + ' 吗？'
+  if (folderCount > 0) {
+    confirmText += '\n\n注意：删除文件夹将同时删除其内部的所有内容，此操作不可撤销。'
+  }
+
+  if (!confirm(confirmText)) return
+
+  const idsToDelete = Array.from(selectedNodeIds.value)
+  localMaterials.value = removeNodesByIds(localMaterials.value, idsToDelete)
+
+  idsToDelete.forEach(id => {
+    if (selectedNodeId.value === id) {
+      selectedNodeId.value = null
+      emit('select', null)
+    }
+  })
+
+  selectedNodeIds.value = new Set()
+  lastSelectedId.value = null
+  emit('update:materials', localMaterials.value)
+}
+
+const handleBatchMove = () => {
+  if (selectedNodeIds.value.size === 0) return
+  moveTargetFolderId.value = null
+  showMoveDialog.value = true
+}
+
+const confirmBatchMove = () => {
+  const targetId = moveTargetFolderId.value
+  const selectedIds = Array.from(selectedNodeIds.value)
+
+  if (targetId !== null) {
+    if (isDescendantOfAny(localMaterials.value, targetId, selectedIds)) {
+      alert('不能将节点移动到自身或其后代节点下！')
+      return
+    }
+  }
+
+  let result = localMaterials.value
+  const nodesToMove = getNodesByIds(localMaterials.value, selectedIds)
+
+  result = removeNodesByIds(result, selectedIds)
+
+  for (const node of nodesToMove) {
+    if (targetId === null) {
+      result = [...result, { ...node }]
+    } else {
+      result = addChildNode(result, targetId, { ...node })
+    }
+  }
+
+  localMaterials.value = result
+  emit('update:materials', localMaterials.value)
+  showMoveDialog.value = false
+  moveTargetFolderId.value = null
+}
+
+const handleBatchRemark = () => {
+  if (selectedNodeIds.value.size === 0) return
+  batchRemark.value = ''
+  showRemarkDialog.value = true
+}
+
+const confirmBatchRemark = () => {
+  const remark = batchRemark.value.trim()
+  if (!remark) {
+    alert('请输入备注内容')
+    return
+  }
+
+  const ids = Array.from(selectedNodeIds.value)
+  localMaterials.value = updateNodesByIds(localMaterials.value, ids, { description: remark })
+  emit('update:materials', localMaterials.value)
+  showRemarkDialog.value = false
+  batchRemark.value = ''
+}
+
+const handleBatchExport = (format: 'excel' | 'pdf') => {
+  if (selectedNodeIds.value.size === 0) return
+  emit('batch-export', Array.from(selectedNodeIds.value), format)
+  showExportMenu.value = false
 }
 
 const handleDragStart = (nodeId: string) => {
@@ -326,11 +507,97 @@ const setSelectedNode = (node: MaterialNode) => {
 defineExpose({
   getMaterials: () => localMaterials.value,
   setSelectedNode,
+  getSelectedIds: () => Array.from(selectedNodeIds.value),
+  getSelectedNodes: () => selectedNodes.value,
 })
 </script>
 
 <template>
   <div class="h-full flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div
+      v-if="multiSelectMode && selectedNodeIds.size > 0"
+      class="flex items-center justify-between px-4 py-2.5 bg-blue-50 border-b border-blue-100"
+    >
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-medium text-blue-700">
+          已选择 {{ selectedNodeIds.size }} 项
+          <span v-if="selectedFileCount > 0" class="text-blue-600">
+            （{{ selectedFileCount }} 文件
+            <span v-if="selectedFolderCount > 0">, {{ selectedFolderCount }} 文件夹</span>）
+          </span>
+          <span v-else-if="selectedFolderCount > 0" class="text-blue-600">
+            （{{ selectedFolderCount }} 文件夹）
+          </span>
+        </span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white text-gray-600 rounded-md hover:bg-gray-50 border border-gray-200 transition-colors"
+          @click="selectAllVisible"
+        >
+          <CheckSquare class="w-3.5 h-3.5" />
+          全选
+        </button>
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white text-gray-600 rounded-md hover:bg-gray-50 border border-gray-200 transition-colors"
+          @click="clearSelection"
+        >
+          <Square class="w-3.5 h-3.5" />
+          清空
+        </button>
+        <div class="w-px h-5 bg-gray-200 mx-1"></div>
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-md hover:bg-red-100 border border-red-200 transition-colors"
+          @click="handleBatchDelete"
+        >
+          <Trash2 class="w-3.5 h-3.5" />
+          批量删除
+        </button>
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-50 text-amber-600 rounded-md hover:bg-amber-100 border border-amber-200 transition-colors"
+          @click="handleBatchMove"
+        >
+          <ArrowRightLeft class="w-3.5 h-3.5" />
+          批量移动
+        </button>
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-50 text-purple-600 rounded-md hover:bg-purple-100 border border-purple-200 transition-colors"
+          @click="handleBatchRemark"
+        >
+          <MessageSquare class="w-3.5 h-3.5" />
+          批量备注
+        </button>
+        <div class="relative">
+          <button
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-50 text-green-600 rounded-md hover:bg-green-100 border border-green-200 transition-colors"
+            @click="showExportMenu = !showExportMenu"
+          >
+            <FileDown class="w-3.5 h-3.5" />
+            批量导出
+          </button>
+          <div
+            v-if="showExportMenu"
+            class="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-30"
+          >
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              @click="handleBatchExport('excel')"
+            >
+              <FileSpreadsheet class="w-4 h-4 text-green-600" />
+              导出 Excel
+            </button>
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              @click="handleBatchExport('pdf')"
+            >
+              <FileText class="w-4 h-4 text-red-600" />
+              导出 PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
       <div class="flex items-center gap-2">
         <button
@@ -349,6 +616,15 @@ defineExpose({
         </button>
       </div>
       <div class="flex items-center gap-1">
+        <button
+          class="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg transition-colors"
+          :class="multiSelectMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'"
+          :title="multiSelectMode ? '退出多选模式' : '进入多选模式'"
+          @click="toggleMultiSelectMode"
+        >
+          <ListChecks class="w-4 h-4" />
+          <span class="text-xs">{{ multiSelectMode ? '多选中' : '多选' }}</span>
+        </button>
         <button
           class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
           title="刷新"
@@ -470,7 +746,10 @@ defineExpose({
         :nodes="filteredMaterials"
         :selected-node-id="selectedNodeId"
         :matched-node-ids="matchedNodeIds"
+        :multi-select-mode="multiSelectMode"
+        :selected-node-ids="selectedNodeIds"
         @select="handleSelect"
+        @toggle-select="handleToggleSelect"
         @toggle-expand="toggleExpand"
         @add="handleAdd"
         @rename="handleRename"
@@ -480,5 +759,126 @@ defineExpose({
         @drop="handleDrop"
       />
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="showMoveDialog"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="showMoveDialog = false"
+      >
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900">批量移动到文件夹</h3>
+            <button
+              class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="showMoveDialog = false"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+          <div class="px-5 py-4">
+            <p class="text-sm text-gray-600 mb-3">
+              已选择 {{ selectedNodeIds.size }} 项，请选择目标文件夹（选择根目录则移动到顶层）
+            </p>
+            <div class="space-y-1 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-2">
+              <button
+                class="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors"
+                :class="moveTargetFolderId === null ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'"
+                @click="moveTargetFolderId = null"
+              >
+                <FolderOpen class="w-4 h-4 text-yellow-500" />
+                <span>根目录</span>
+              </button>
+              <button
+                v-for="folder in availableMoveTargets"
+                :key="folder.id"
+                class="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors"
+                :class="moveTargetFolderId === folder.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'"
+                @click="moveTargetFolderId = folder.id"
+              >
+                <Folder class="w-4 h-4 text-yellow-500" />
+                <span class="truncate">{{ folder.name }}</span>
+                <span class="text-xs text-gray-400 ml-auto flex-shrink-0">
+                  {{ getNodePath(localMaterials, folder.id) }}
+                </span>
+              </button>
+              <div
+                v-if="availableMoveTargets.length === 0"
+                class="px-3 py-4 text-center text-sm text-gray-400"
+              >
+                没有可用的目标文件夹
+              </div>
+            </div>
+          </div>
+          <div class="px-5 py-4 bg-gray-50 flex items-center justify-end gap-2">
+            <button
+              class="px-4 py-2 text-sm text-gray-600 bg-white hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+              @click="showMoveDialog = false"
+            >
+              取消
+            </button>
+            <button
+              class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="moveTargetFolderId === null && selectedFolderCount === 0 ? false : false"
+              @click="confirmBatchMove"
+            >
+              确认移动
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="showRemarkDialog"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="showRemarkDialog = false"
+      >
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900">批量设置备注</h3>
+            <button
+              class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="showRemarkDialog = false"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+          <div class="px-5 py-4">
+            <p class="text-sm text-gray-600 mb-3">
+              将为选中的 {{ selectedNodeIds.size }} 项设置相同备注
+            </p>
+            <textarea
+              v-model="batchRemark"
+              rows="5"
+              class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              placeholder="请输入备注内容..."
+            ></textarea>
+          </div>
+          <div class="px-5 py-4 bg-gray-50 flex items-center justify-end gap-2">
+            <button
+              class="px-4 py-2 text-sm text-gray-600 bg-white hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+              @click="showRemarkDialog = false"
+            >
+              取消
+            </button>
+            <button
+              class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!batchRemark.trim()"
+              @click="confirmBatchRemark"
+            >
+              确认设置
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <div
+      v-if="showExportMenu"
+      class="fixed inset-0 z-20"
+      @click="showExportMenu = false"
+    ></div>
   </div>
 </template>

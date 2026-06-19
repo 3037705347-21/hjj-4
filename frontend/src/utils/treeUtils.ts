@@ -345,3 +345,145 @@ export const getSiblings = (
   const parent = findParentNode(nodes, nodeId)
   return parent ? parent.children || nodes : nodes
 }
+
+export const removeNodesByIds = (
+  nodes: MaterialNode[],
+  ids: string[]
+): MaterialNode[] => {
+  const idSet = new Set(ids)
+  return nodes
+    .filter(node => !idSet.has(node.id))
+    .map(node => ({
+      ...node,
+      children: node.children ? removeNodesByIds(node.children, ids) : undefined,
+    }))
+}
+
+export const getNodesByIds = (
+  nodes: MaterialNode[],
+  ids: string[]
+): MaterialNode[] => {
+  const idSet = new Set(ids)
+  const result: MaterialNode[] = []
+  const traverse = (nodeList: MaterialNode[]) => {
+    for (const node of nodeList) {
+      if (idSet.has(node.id)) {
+        result.push(node)
+      }
+      if (node.children) {
+        traverse(node.children)
+      }
+    }
+  }
+  traverse(nodes)
+  return result
+}
+
+export const isDescendantOfAny = (
+  nodes: MaterialNode[],
+  targetId: string,
+  ancestorIds: string[]
+): boolean => {
+  for (const ancestorId of ancestorIds) {
+    if (ancestorId === targetId) return true
+    if (isDescendant(nodes, ancestorId, targetId)) return true
+  }
+  return false
+}
+
+export const updateNodesByIds = (
+  nodes: MaterialNode[],
+  ids: string[],
+  updates: Partial<MaterialNode>
+): MaterialNode[] => {
+  const idSet = new Set(ids)
+  return nodes.map(node => {
+    if (idSet.has(node.id)) {
+      return { ...node, ...updates }
+    }
+    if (node.children) {
+      return { ...node, children: updateNodesByIds(node.children, ids, updates) }
+    }
+    return node
+  })
+}
+
+export const getAllFolderNodes = (nodes: MaterialNode[]): MaterialNode[] => {
+  const result: MaterialNode[] = []
+  const traverse = (nodeList: MaterialNode[]) => {
+    for (const node of nodeList) {
+      if (node.type === MaterialNodeType.FOLDER) {
+        result.push(node)
+      }
+      if (node.children) {
+        traverse(node.children)
+      }
+    }
+  }
+  traverse(nodes)
+  return result
+}
+
+export const flattenSelectedNodes = (
+  allNodes: MaterialNode[],
+  selectedIds: string[]
+): FlatMaterialItem[] => {
+  const result: FlatMaterialItem[] = []
+  const idSet = new Set(selectedIds)
+
+  const traverse = (nodes: MaterialNode[], parentPath: string = '') => {
+    for (const node of nodes) {
+      const currentPath = parentPath ? `${parentPath} / ${node.name}` : node.name
+
+      if (idSet.has(node.id)) {
+        if (node.type === MaterialNodeType.FILE) {
+          result.push({
+            id: node.id,
+            name: node.name,
+            type: node.type,
+            path: currentPath,
+            uploadDate: node.uploadDate || '',
+            uploader: node.uploader || '',
+            fileSize: node.fileSize || '',
+            description: node.description || '',
+          })
+        } else if (node.type === MaterialNodeType.FOLDER) {
+          result.push({
+            id: node.id,
+            name: node.name,
+            type: node.type,
+            path: parentPath,
+            uploadDate: '',
+            uploader: '',
+            fileSize: '',
+            description: node.description || '文件夹',
+          })
+          if (node.children) {
+            traverse(node.children, currentPath)
+          }
+        }
+      } else if (node.children) {
+        traverse(node.children, currentPath)
+      }
+    }
+  }
+
+  traverse(allNodes)
+  return result
+}
+
+export const getNodePath = (
+  nodes: MaterialNode[],
+  nodeId: string,
+  parentPath: string = ''
+): string => {
+  for (const node of nodes) {
+    const currentPath = parentPath ? `${parentPath} / ${node.name}` : node.name
+    if (node.id === nodeId) return currentPath
+    if (node.children) {
+      const found = getNodePath(node.children, nodeId, currentPath)
+      if (found) return found
+    }
+  }
+  return ''
+}
