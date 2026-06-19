@@ -1,6 +1,111 @@
 import type { FlatMaterialItem, MaterialNode } from '@/types'
 import { MaterialNodeType } from '@/types'
 
+export interface FilterOptions {
+  nameKeyword?: string
+  nodeType?: 'all' | 'folder' | 'file'
+  uploader?: string
+  uploadDateFrom?: string
+  uploadDateTo?: string
+  hasFileSize?: 'all' | 'yes' | 'no'
+}
+
+const deepClone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj))
+
+const nodeMatchesFilter = (node: MaterialNode, options: FilterOptions): boolean => {
+  const { nameKeyword, nodeType, uploader, uploadDateFrom, uploadDateTo, hasFileSize } = options
+
+  if (nameKeyword && nameKeyword.trim()) {
+    const keyword = nameKeyword.trim().toLowerCase()
+    if (!node.name.toLowerCase().includes(keyword)) {
+      return false
+    }
+  }
+
+  if (nodeType && nodeType !== 'all') {
+    if (nodeType === 'folder' && node.type !== MaterialNodeType.FOLDER) return false
+    if (nodeType === 'file' && node.type !== MaterialNodeType.FILE) return false
+  }
+
+  if (uploader && uploader.trim()) {
+    if (!node.uploader || !node.uploader.toLowerCase().includes(uploader.trim().toLowerCase())) {
+      return false
+    }
+  }
+
+  if (uploadDateFrom && node.uploadDate) {
+    if (node.uploadDate < uploadDateFrom) return false
+  }
+  if (uploadDateTo && node.uploadDate) {
+    if (node.uploadDate > uploadDateTo) return false
+  }
+
+  if (hasFileSize && hasFileSize !== 'all') {
+    if (hasFileSize === 'yes' && !node.fileSize) return false
+    if (hasFileSize === 'no' && node.fileSize) return false
+  }
+
+  return true
+}
+
+export const filterMaterialTree = (
+  nodes: MaterialNode[],
+  options: FilterOptions
+): MaterialNode[] => {
+  const hasFilter = Object.values(options).some(v => {
+    if (v === undefined || v === null) return false
+    if (typeof v === 'string' && v.trim() === '') return false
+    if (v === 'all') return false
+    return true
+  })
+
+  if (!hasFilter) return nodes
+
+  const filterNodes = (nodeList: MaterialNode[]): MaterialNode[] => {
+    const result: MaterialNode[] = []
+
+    for (const node of nodeList) {
+      const selfMatches = nodeMatchesFilter(node, options)
+
+      let filteredChildren: MaterialNode[] = []
+      if (node.children && node.children.length > 0) {
+        filteredChildren = filterNodes(node.children)
+      }
+
+      if (selfMatches || filteredChildren.length > 0) {
+        const clonedNode = deepClone(node)
+        if (clonedNode.type === MaterialNodeType.FOLDER) {
+          clonedNode.children = filteredChildren
+          clonedNode.expanded = true
+        }
+        result.push(clonedNode)
+      }
+    }
+
+    return result
+  }
+
+  return filterNodes(nodes)
+}
+
+export const getAllUploaders = (nodes: MaterialNode[]): string[] => {
+  const uploaders = new Set<string>()
+
+  const traverse = (nodeList: MaterialNode[]) => {
+    for (const node of nodeList) {
+      if (node.uploader) {
+        uploaders.add(node.uploader)
+      }
+      if (node.children) {
+        traverse(node.children)
+      }
+    }
+  }
+
+  traverse(nodes)
+  return Array.from(uploaders).sort()
+}
+
 export const flattenMaterialTree = (
   nodes: MaterialNode[],
   parentPath: string = ''

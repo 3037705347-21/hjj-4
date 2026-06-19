@@ -20,11 +20,13 @@ import { MaterialNodeType } from '@/types'
 interface Props {
   nodes: MaterialNode[]
   selectedNodeId: string | null
+  matchedNodeIds?: Set<string>
   level?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   level: 0,
+  matchedNodeIds: () => new Set<string>(),
 })
 
 const emit = defineEmits<{
@@ -119,6 +121,8 @@ const handleRootDrop = (e: DragEvent) => {
 
 const isSelected = (nodeId: string) => props.selectedNodeId === nodeId
 
+const isMatched = (nodeId: string) => props.matchedNodeIds?.has(nodeId)
+
 const getDropClass = (node: MaterialNode) => {
   if (dragOverState.value.nodeId !== node.id) return ''
   const pos = dragOverState.value.position
@@ -144,6 +148,8 @@ const getDropClass = (node: MaterialNode) => {
         :class="[
           isSelected(node.id)
             ? 'bg-blue-50 text-blue-700'
+            : isMatched(node.id)
+            ? 'bg-yellow-50 text-yellow-800'
             : 'hover:bg-gray-50',
           getDropClass(node),
         ]"
@@ -233,6 +239,7 @@ const getDropClass = (node: MaterialNode) => {
         v-if="node.type === MaterialNodeType.FOLDER && node.expanded && node.children"
         :nodes="node.children"
         :selected-node-id="selectedNodeId"
+        :matched-node-ids="matchedNodeIds"
         :level="level + 1"
         @select="(n) => emit('select', n)"
         @toggle-expand="(id) => emit('toggleExpand', id)"

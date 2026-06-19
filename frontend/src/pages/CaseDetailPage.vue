@@ -29,6 +29,7 @@ const selectedNode = ref<MaterialNode | null>(null)
 const treeRef = ref<InstanceType<typeof MaterialTree> | null>(null)
 const currentMaterials = ref<MaterialNode[]>([])
 const showExportMenu = ref(false)
+const filteredCounts = ref<{ files: number; folders: number } | null>(null)
 
 onMounted(() => {
   const caseId = route.params.id as string
@@ -64,14 +65,20 @@ const handleExport = (format: 'excel' | 'pdf') => {
 }
 
 const materialCount = computed(() => {
+  if (filteredCounts.value !== null) return filteredCounts.value.files
   const flat = flattenMaterialTree(currentMaterials.value)
   return flat.filter(m => m.type === NodeType.FILE).length
 })
 
 const folderCount = computed(() => {
+  if (filteredCounts.value !== null) return filteredCounts.value.folders
   const flat = flattenMaterialTree(currentMaterials.value)
   return flat.filter(m => m.type === NodeType.FOLDER).length
 })
+
+const handleFilteredCount = (counts: { files: number; folders: number }) => {
+  filteredCounts.value = counts
+}
 </script>
 
 <template>
@@ -225,6 +232,7 @@ const folderCount = computed(() => {
             class="flex-1"
             @update:materials="handleMaterialsUpdate"
             @select="handleSelectNode"
+            @filtered-count="handleFilteredCount"
           />
         </div>
 
