@@ -17,13 +17,14 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  Settings,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import { mockCases, caseStatusMap } from '@/mock/data'
 import type { Case, MaterialNode } from '@/types'
 import { MaterialNodeType as NodeType } from '@/types'
 import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
-import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
+import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,12 @@ const treeRef = ref<InstanceType<typeof MaterialTree> | null>(null)
 const currentMaterials = ref<MaterialNode[]>([])
 const showExportMenu = ref(false)
 const filteredCounts = ref<{ files: number; folders: number } | null>(null)
+const showExportDialog = ref(false)
+const pendingExportFormat = ref<'excel' | 'pdf' | null>(null)
+const exportRange = ref<ExportRange>('all')
+const exportColumns = ref<ExportColumnConfig>({ ...defaultExportColumns })
+const exportSortBy = ref<string>('')
+const exportSortOrder = ref<'asc' | 'desc'>('asc')
 
 const isEditing = ref(false)
 const editForm = ref<Partial<MaterialNode>>({})
@@ -109,17 +116,76 @@ const handleMaterialsUpdate = (materials: MaterialNode[]) => {
   currentMaterials.value = materials
 }
 
-const handleExport = (format: 'excel' | 'pdf') => {
-  if (!currentCase.value) return
-  const flatMaterials = flattenMaterialTree(currentMaterials.value)
-  const exportCase = { ...currentCase.value, materials: currentMaterials.value }
-  if (format === 'excel') {
-    exportToExcel(exportCase, flatMaterials)
+const availableExportRanges = computed(() => {
+  const ranges: Array<{ value: ExportRange; label: string; disabled?: boolean; hint?: string }> = [
+    { value: 'all', label: exportRangeLabels.all },
+    { value: 'filesOnly', label: exportRangeLabels.filesOnly },
+  ]
+
+  if (treeRef.value?.getIsFilterActive()) {
+    ranges.push({ value: 'filtered', label: exportRangeLabels.filtered })
   } else {
-    exportToPDF(exportCase, flatMaterials)
+    ranges.push({ value: 'filtered', label: exportRangeLabels.filtered, disabled: true, hint: '当前未应用筛选条件' })
   }
+
+  const selectedIds = treeRef.value?.getSelectedIds() || []
+  if (selectedIds.length > 0) {
+    ranges.push({ value: 'selected', label: `${exportRangeLabels.selected}（${selectedIds.length} 项）` })
+  } else {
+    ranges.push({ value: 'selected', label: exportRangeLabels.selected, disabled: true, hint: '当前未选择任何节点' })
+  }
+
+  return ranges
+})
+
+const openExportConfig = (format: 'excel' | 'pdf') => {
+  pendingExportFormat.value = format
+  exportRange.value = 'all'
+  exportColumns.value = { ...defaultExportColumns }
+  exportSortBy.value = ''
+  exportSortOrder.value = 'asc'
   showExportMenu.value = false
+  showExportDialog.value = true
 }
+
+const handleExport = (format: 'excel' | 'pdf') => {
+  openExportConfig(format)
+}
+
+const confirmExport = () => {
+  if (!currentCase.value || !pendingExportFormat.value) return
+
+  const filterOptions = treeRef.value?.getFilterOptions()
+  const selectedIds = treeRef.value?.getSelectedIds() || []
+
+  const exportCase = { ...currentCase.value, materials: currentMaterials.value }
+
+  exportMaterialList(exportCase, currentMaterials.value, pendingExportFormat.value, {
+    range: exportRange.value,
+    columns: exportColumns.value,
+    filterOptions: exportRange.value === 'filtered' ? filterOptions : undefined,
+    selectedIds: exportRange.value === 'selected' ? selectedIds : undefined,
+    sortBy: exportSortBy.value || undefined,
+    sortOrder: exportSortOrder.value,
+  })
+
+  showExportDialog.value = false
+  pendingExportFormat.value = null
+}
+
+const toggleAllColumns = (checked: boolean) => {
+  exportColumns.value = {
+    description: checked,
+    uploader: checked,
+    uploadDate: checked,
+    fileSize: checked,
+    path: checked,
+  }
+}
+
+const allColumnsSelected = computed(() => {
+  return Object.values(exportColumns.value).every(v => v)
+})
 
 const materialCount = computed(() => {
   if (filteredCounts.value !== null) return filteredCounts.value.files
@@ -137,15 +203,9 @@ const handleFilteredCount = (counts: { files: number; folders: number }) => {
   filteredCounts.value = counts
 }
 
-const handleBatchExport = (selectedIds: string[], format: 'excel' | 'pdf') => {
-  if (!currentCase.value) return
-  const flatMaterials = flattenSelectedNodes(currentMaterials.value, selectedIds)
-  const exportCase = { ...currentCase.value, materials: currentMaterials.value }
-  if (format === 'excel') {
-    exportToExcel(exportCase, flatMaterials)
-  } else {
-    exportToPDF(exportCase, flatMaterials)
-  }
+const handleBatchExport = (_selectedIds: string[], format: 'excel' | 'pdf') => {
+  openExportConfig(format)
+  exportRange.value = 'selected'
 }
 
 const handleMultiSelectChange = (_nodes: MaterialNode[]) => {
@@ -658,6 +718,170 @@ const hasChanges = computed(() => {
       class="fixed inset-0 z-10"
       @click="showExportMenu = false"
     ></div>
+
+    <Teleport to="body">
+      <div
+        v-if="showExportDialog"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="showExportDialog = false"
+      >
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Settings class="w-5 h-5 text-blue-600" />
+              导出配置
+              <span class="text-sm font-normal text-gray-500">
+                （{{ pendingExportFormat === 'excel' ? 'Excel' : 'PDF' }}）
+              </span>
+            </h3>
+            <button
+              class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="showExportDialog = false"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="px-6 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">导出范围</label>
+              <div class="space-y-2">
+                <label
+                  v-for="range in availableExportRanges"
+                  :key="range.value"
+                  class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors"
+                  :class="[
+                    exportRange === range.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : range.disabled
+                      ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  ]"
+                >
+                  <input
+                    type="radio"
+                    :value="range.value"
+                    v-model="exportRange"
+                    :disabled="range.disabled"
+                    class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <span class="text-sm font-medium" :class="range.disabled ? 'text-gray-400' : 'text-gray-900'">
+                      {{ range.label }}
+                    </span>
+                    <p v-if="range.hint" class="text-xs text-gray-400 mt-0.5">
+                      {{ range.hint }}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-sm font-medium text-gray-700">导出列</label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    :checked="allColumnsSelected"
+                    @change="toggleAllColumns(($event.target as HTMLInputElement).checked)"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  全选
+                </label>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    v-model="exportColumns.description"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">备注说明</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    v-model="exportColumns.uploader"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">上传人</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    v-model="exportColumns.uploadDate"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">上传日期</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    v-model="exportColumns.fileSize"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">文件大小</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors col-span-2">
+                  <input
+                    type="checkbox"
+                    v-model="exportColumns.path"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">完整路径</span>
+                </label>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">
+                「序号」「类型」「名称」为固定列，始终导出
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">排序方式</label>
+              <div class="grid grid-cols-2 gap-2">
+                <select
+                  v-model="exportSortBy"
+                  class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">默认顺序</option>
+                  <option value="name">按名称</option>
+                  <option value="path">按路径</option>
+                  <option value="uploadDate">按上传日期</option>
+                  <option value="uploader">按上传人</option>
+                  <option value="fileSize">按文件大小</option>
+                  <option value="type">按类型</option>
+                </select>
+                <select
+                  v-model="exportSortOrder"
+                  :disabled="!exportSortBy"
+                  class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="asc">升序</option>
+                  <option value="desc">降序</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3 border-t border-gray-100">
+            <button
+              class="px-4 py-2 text-sm text-gray-600 bg-white hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+              @click="showExportDialog = false"
+            >
+              取消
+            </button>
+            <button
+              class="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              @click="confirmExport"
+            >
+              <FileDown class="w-4 h-4" />
+              确认导出
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     </template>
   </div>
 </template>

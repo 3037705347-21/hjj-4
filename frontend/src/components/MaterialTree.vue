@@ -543,6 +543,9 @@ const setSelectedNodeId = (nodeId: string) => {
 
 defineExpose({
   getMaterials: () => localMaterials.value,
+  getFilteredMaterials: () => filteredMaterials.value,
+  getFilterOptions: () => filterOptions.value,
+  getIsFilterActive: () => isFilterActive.value,
   setSelectedNode,
   setSelectedNodeId,
   getSelectedIds: () => Array.from(selectedNodeIds.value),
