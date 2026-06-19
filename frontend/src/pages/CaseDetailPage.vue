@@ -27,9 +27,12 @@ import {
   ChevronUp,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
+import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
+import CaseTaskSection from '@/components/CaseTaskSection.vue'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { getTemplateByCaseType } from '@/mock/materialTemplates'
-import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord } from '@/types'
+import { computeTaskSummary, refreshOverdueTasks } from '@/mock/tasks'
+import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord, TaskSummary } from '@/types'
 import { CaseStatus, MaterialNodeType as NodeType } from '@/types'
 import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
@@ -103,6 +106,7 @@ onMounted(() => {
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
     statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
   }
+  refreshOverdueTasks()
   window.addEventListener('keydown', handleKeydown)
 })
 
@@ -444,6 +448,21 @@ const getStatusLabel = (status: CaseStatusType | null): string => {
   if (!status) return '新建'
   return caseStatusMap[status]?.label || status
 }
+
+const taskSummary = computed<TaskSummary>(() => {
+  if (!currentCase.value) {
+    return {
+      total: 0, pending: 0, assigned: 0, inProgress: 0,
+      completed: 0, overdue: 0, cancelled: 0,
+    }
+  }
+  return computeTaskSummary(currentCase.value.id)
+})
+
+const goToTaskList = () => {
+  if (!currentCase.value) return
+  router.push({ name: 'task-list', query: { caseId: currentCase.value.id } })
+}
 </script>
 
 <template>
@@ -732,6 +751,13 @@ const getStatusLabel = (status: CaseStatusType | null): string => {
         </div>
       </div>
 
+      <CaseTaskSummary
+        v-if="currentCase"
+        :summary="taskSummary"
+        class="mb-6"
+        @go-to-task-list="goToTaskList"
+      />
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" style="min-height: 600px;">
         <div class="lg:col-span-2 flex flex-col">
           <div class="flex items-center justify-between mb-3">
@@ -1008,6 +1034,13 @@ const getStatusLabel = (status: CaseStatusType | null): string => {
           </div>
         </div>
       </div>
+
+      <CaseTaskSection
+        v-if="currentCase"
+        :case-id="currentCase.id"
+        :materials="currentMaterials"
+        class="mt-6"
+      />
     </div>
 
     <div

@@ -67,3 +67,66 @@ export interface FlatMaterialItem {
   fileSize: string
   description: string
 }
+
+export enum TaskStatus {
+  PENDING = 'pending',
+  ASSIGNED = 'assigned',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  OVERDUE = 'overdue',
+  CANCELLED = 'cancelled',
+}
+
+export enum TaskPriority {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  URGENT = 'urgent',
+}
+
+export enum TaskType {
+  DOCUMENT = 'document',
+  EVIDENCE = 'evidence',
+  HEARING = 'hearing',
+  COMMUNICATION = 'communication',
+  OTHER = 'other',
+}
+
+export interface TaskStatusChangeRecord {
+  id: string
+  fromStatus: TaskStatus | null
+  toStatus: TaskStatus
+  remark: string
+  operator: string
+  timestamp: string
+}
+
+export interface CaseTask {
+  id: string
+  caseId: string
+  title: string
+  type: TaskType
+  priority: TaskPriority
+  status: TaskStatus
+  assignee: string
+  assignor?: string
+  dueDate: string
+  description: string
+  relatedMaterialNodeIds: string[]
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+  statusHistory?: TaskStatusChangeRecord[]
+}
+
+export interface TaskSummary {
+  total: number
+  pending: number
+  assigned: number
+  inProgress: number
+  completed: number
+  overdue: number
+  cancelled: number
+  nearestDueDate?: string
+  nearestDueTaskTitle?: string
+}

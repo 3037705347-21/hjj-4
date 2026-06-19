@@ -9,6 +9,7 @@ import {
   Shield,
   Users,
   FileText,
+  ClipboardList,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -17,12 +18,22 @@ const goToCases = () => {
   router.push({ name: 'case-list' })
 }
 
+const goToTasks = () => {
+  router.push({ name: 'task-list' })
+}
+
 const features = [
   {
     icon: FolderTree,
     title: '材料树管理',
     description: '以树形结构直观管理案件材料，支持文件夹分类、拖拽排序、快速增删改',
     color: 'blue',
+  },
+  {
+    icon: ClipboardList,
+    title: '案件任务与提醒',
+    description: '为每个案件设置待办事项、截止日期，跟踪任务进度和逾期状态',
+    color: 'indigo',
   },
   {
     icon: FileSpreadsheet,
@@ -46,6 +57,7 @@ const features = [
 
 const colorMap: Record<string, string> = {
   blue: 'bg-blue-50 text-blue-600',
+  indigo: 'bg-indigo-50 text-indigo-600',
   green: 'bg-green-50 text-green-600',
   purple: 'bg-purple-50 text-purple-600',
   orange: 'bg-orange-50 text-orange-600',
@@ -65,13 +77,22 @@ const colorMap: Record<string, string> = {
             <p class="text-xs text-gray-500">Case Material Management</p>
           </div>
         </div>
-        <button
-          class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
-          @click="goToCases"
-        >
-          进入系统
-          <ArrowRight class="w-4 h-4" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToTasks"
+          >
+            <ClipboardList class="w-4 h-4" />
+            任务管理
+          </button>
+          <button
+            class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
+            @click="goToCases"
+          >
+            案件管理
+            <ArrowRight class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </header>
 
@@ -99,21 +120,22 @@ const colorMap: Record<string, string> = {
             @click="goToCases"
           >
             <FolderTree class="w-5 h-5" />
-            开始使用
+            案件管理
             <ArrowRight class="w-5 h-5" />
           </button>
           <button
             class="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all shadow-md border border-gray-200 text-base font-semibold"
+            @click="goToTasks"
           >
-            <FileText class="w-5 h-5" />
-            查看文档
+            <ClipboardList class="w-5 h-5 text-indigo-600" />
+            任务管理
           </button>
         </div>
       </div>
     </section>
 
     <section class="max-w-7xl mx-auto px-6 pb-20">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div
           v-for="feature in features"
           :key="feature.title"
@@ -146,14 +168,23 @@ const colorMap: Record<string, string> = {
           <p class="text-blue-100 text-lg mb-8 leading-relaxed">
             进入系统，体验高效便捷的案件材料管理流程。支持文件夹分类管理、拖拽排序、一键导出清单。
           </p>
-          <button
-            class="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-blue-600 rounded-xl hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl text-base font-semibold"
-            @click="goToCases"
-          >
-            <Briefcase class="w-5 h-5" />
-            进入案件管理
-            <ArrowRight class="w-5 h-5" />
-          </button>
+          <div class="flex flex-col sm:flex-row items-start gap-3">
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-blue-600 rounded-xl hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl text-base font-semibold"
+              @click="goToCases"
+            >
+              <Briefcase class="w-5 h-5" />
+              案件管理
+              <ArrowRight class="w-5 h-5" />
+            </button>
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"
+              @click="goToTasks"
+            >
+              <ClipboardList class="w-5 h-5" />
+              任务管理
+            </button>
+          </div>
         </div>
       </div>
     </section>

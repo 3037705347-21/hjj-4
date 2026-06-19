@@ -13,6 +13,7 @@ import {
   Edit3,
   Trash2,
   AlertTriangle,
+  ClipboardList,
 } from 'lucide-vue-next'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
@@ -22,6 +23,10 @@ import CaseFormModal from '@/components/CaseFormModal.vue'
 import { getMissingCount } from '@/utils/caseWorkflow'
 
 const router = useRouter()
+
+const goToTasks = () => {
+  router.push({ name: 'task-list' })
+}
 
 const cases = ref<Case[]>([...mockCases])
 const searchQuery = ref('')
@@ -134,13 +139,22 @@ const cancelDelete = () => {
             <h1 class="text-2xl font-bold text-gray-900">案件管理</h1>
             <p class="mt-1 text-sm text-gray-500">管理所有案件及其材料档案</p>
           </div>
-          <button
-            class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-            @click="handleCreate"
-          >
-            <Plus class="w-5 h-5" />
-            新建案件
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToTasks"
+            >
+              <ClipboardList class="w-5 h-5 text-indigo-600" />
+              任务管理
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              @click="handleCreate"
+            >
+              <Plus class="w-5 h-5" />
+              新建案件
+            </button>
+          </div>
         </div>
       </div>
     </header>
