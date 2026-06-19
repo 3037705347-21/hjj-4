@@ -31,6 +31,9 @@ import {
   Archive,
   ExternalLink,
   MapPin,
+  FileSignature,
+  History,
+  FileType,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
@@ -55,6 +58,10 @@ import {
   getAvailableTransitions,
   type MaterialCompletenessResult,
 } from '@/utils/caseWorkflow'
+import { generateDocument } from '@/utils/documentGenerator'
+import { getTemplates, getGenerationRecordsByCaseId } from '@/mock/documentTemplates'
+import type { DocumentTemplate, TemplateType, GenerationRecord } from '@/types'
+import { TemplateType as TT, templateTypeMap, OutputFormat, outputFormatMap } from '@/types'
 
 type DetailTab = 'case-info' | 'communication'
 
@@ -73,6 +80,18 @@ const exportRange = ref<ExportRange>('all')
 const exportColumns = ref<ExportColumnConfig>({ ...defaultExportColumns })
 const exportSortBy = ref<string>('')
 const exportSortOrder = ref<'asc' | 'desc'>('asc')
+
+const showDocumentDialog = ref(false)
+const showDocumentMenu = ref(false)
+const selectedTemplate = ref<DocumentTemplate | null>(null)
+const availableTemplates = ref<DocumentTemplate[]>([])
+const generationRecords = ref<GenerationRecord[]>([])
+const filterTemplateType = ref<TemplateType | 'all'>('all')
+
+const templateTypeOptions = [
+  { value: 'all', label: '全部类型' },
+  ...Object.entries(templateTypeMap).map(([value, { label }]) => ({ value, label })),
+]
 
 const isEditing = ref(false)
 const editForm = ref<Partial<MaterialNode>>({})
@@ -139,7 +158,9 @@ onMounted(() => {
     currentCase.value = found
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
     statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
+    loadGenerationRecords()
   }
+  availableTemplates.value = getTemplates()
   refreshOverdueTasks()
   refreshOverdueEvents()
   window.addEventListener('keydown', handleKeydown)
@@ -605,6 +626,119 @@ const goToArchiveDetail = () => {
   if (!currentArchive.value) return
   router.push({ name: 'archive-detail', params: { id: currentArchive.value.archiveId } })
 }
+
+const loadGenerationRecords = () => {
+  if (!currentCase.value) return
+  generationRecords.value = getGenerationRecordsByCaseId(currentCase.value.id)
+}
+
+const filteredTemplates = computed(() => {
+  return availableTemplates.value.filter(t => {
+    if (filterTemplateType.value !== 'all' && t.type !== filterTemplateType.value) return false
+    return true
+  })
+})
+
+const openDocumentDialog = () => {
+  showDocumentDialog.value = true
+  selectedTemplate.value = null
+  filterTemplateType.value = 'all'
+}
+
+const closeDocumentDialog = () => {
+  showDocumentDialog.value = false
+  selectedTemplate.value = null
+}
+
+const selectTemplate = (template: DocumentTemplate) => {
+  selectedTemplate.value = template
+}
+
+const getTypeIcon = (type: TemplateType) => {
+  switch (type) {
+    case TT.CASE_COVER:
+      return FileText
+    case TT.EVIDENCE_LIST:
+      return FileSpreadsheet
+    case TT.MATERIAL_TRANSFER:
+      return FileType
+    case TT.ENTRUSTMENT_LIST:
+      return FileText
+    default:
+      return FileText
+  }
+}
+
+const getTypeColor = (type: TemplateType) => {
+  switch (type) {
+    case TT.CASE_COVER:
+      return 'text-blue-600 bg-blue-50'
+    case TT.EVIDENCE_LIST:
+      return 'text-purple-600 bg-purple-50'
+    case TT.MATERIAL_TRANSFER:
+      return 'text-green-600 bg-green-50'
+    case TT.ENTRUSTMENT_LIST:
+      return 'text-orange-600 bg-orange-50'
+    default:
+      return 'text-gray-600 bg-gray-50'
+  }
+}
+
+const handleGenerateDocument = () => {
+  if (!currentCase.value || !selectedTemplate.value) return
+
+  const flatMaterials = flattenMaterialTree(currentMaterials.value)
+
+  generateDocument({
+    caseInfo: { ...currentCase.value, materials: currentMaterials.value },
+    materials: flatMaterials,
+    template: selectedTemplate.value,
+    generatedBy: currentCase.value.responsibleLawyer || '当前用户',
+  })
+
+  loadGenerationRecords()
+  closeDocumentDialog()
+}
+
+const goToGenerationRecords = () => {
+  if (!currentCase.value) return
+  router.push({ name: 'generation-records', query: { caseId: currentCase.value.id } })
+}
+
+const getFormatIcon = (format?: OutputFormat) => {
+  switch (format) {
+    case OutputFormat.EXCEL:
+      return FileSpreadsheet
+    case OutputFormat.PDF:
+      return FileType
+    case OutputFormat.WORD:
+      return FileText
+    default:
+      return FileText
+  }
+}
+
+const getFormatColor = (format?: OutputFormat) => {
+  switch (format) {
+    case OutputFormat.EXCEL:
+      return 'text-green-600 bg-green-50'
+    case OutputFormat.PDF:
+      return 'text-red-600 bg-red-50'
+    case OutputFormat.WORD:
+      return 'text-blue-600 bg-blue-50'
+    default:
+      return 'text-gray-600 bg-gray-50'
+  }
+}
+
+const formatDate = (dateStr: string): string => {
+  try {
+    const d = new Date(dateStr)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return dateStr
+  }
+}
 </script>
 
 <template>
@@ -677,6 +811,15 @@ const goToArchiveDetail = () => {
                 </button>
               </template>
             </template>
+            <div class="relative">
+              <button
+                class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+                @click="openDocumentDialog"
+              >
+                <FileSignature class="w-4 h-4" />
+                生成文书
+              </button>
+            </div>
             <div class="relative">
               <button
                 class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -1701,6 +1844,179 @@ const goToArchiveDetail = () => {
               <Archive class="w-4 h-4" />
               确认创建
             </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="showDocumentDialog && currentCase"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="closeDocumentDialog"
+      >
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[85vh] flex flex-col overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <FileSignature class="w-5 h-5 text-emerald-600" />
+              生成文书
+            </h3>
+            <button
+              class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="closeDocumentDialog"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-4 flex-shrink-0">
+            <div class="flex items-center gap-2">
+              <Filter class="w-4 h-4 text-gray-400" />
+              <select
+                v-model="filterTemplateType"
+                class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+              >
+                <option v-for="opt in templateTypeOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+              <button
+                class="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                @click="goToGenerationRecords"
+              >
+                <History class="w-4 h-4" />
+                查看生成记录
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-6">
+            <div v-if="filteredTemplates.length === 0" class="py-16 text-center">
+              <FileText class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p class="text-gray-500 mb-2">暂无符合条件的模板</p>
+              <p class="text-sm text-gray-400">尝试调整筛选条件</p>
+            </div>
+
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                v-for="template in filteredTemplates"
+                :key="template.templateId"
+                class="relative border-2 rounded-xl p-4 cursor-pointer transition-all hover:shadow-md"
+                :class="[
+                  selectedTemplate?.templateId === template.templateId
+                    ? 'border-emerald-500 bg-emerald-50'
+                    : 'border-gray-200 hover:border-gray-300',
+                ]"
+                @click="selectTemplate(template)"
+              >
+                <div
+                  v-if="selectedTemplate?.templateId === template.templateId"
+                  class="absolute top-3 right-3 w-5 h-5 bg-emerald-600 rounded-full flex items-center justify-center"
+                >
+                  <CheckCircle2 class="w-3.5 h-3.5 text-white" />
+                </div>
+                <div class="flex items-start gap-3">
+                  <div
+                    class="p-2.5 rounded-lg flex-shrink-0"
+                    :class="getTypeColor(template.type)"
+                  >
+                    <component :is="getTypeIcon(template.type)" class="w-5 h-5" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <h4 class="font-medium text-gray-900 truncate">{{ template.name }}</h4>
+                      <span
+                        v-if="template.isDefault"
+                        class="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded"
+                      >
+                        默认
+                      </span>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2">
+                      {{ templateTypeMap[template.type].label }}
+                    </p>
+                    <p v-if="template.description" class="text-xs text-gray-500 line-clamp-2 mb-2">
+                      {{ template.description }}
+                    </p>
+                    <div class="flex items-center gap-3 text-xs text-gray-400">
+                      <span class="flex items-center gap-1">
+                        <Download class="w-3 h-3" />
+                        {{ outputFormatMap[template.outputFormat].label }}
+                      </span>
+                      <span class="flex items-center gap-1">
+                        <FileText class="w-3 h-3" />
+                        {{ template.enabledFields.length }} 个字段
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="generationRecords.length > 0" class="mt-6 pt-6 border-t border-gray-100">
+              <h4 class="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                <History class="w-4 h-4" />
+                最近生成记录
+              </h4>
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                <div
+                  v-for="record in generationRecords.slice(0, 5)"
+                  :key="record.recordId"
+                  class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                >
+                  <div
+                    class="p-1.5 rounded flex-shrink-0"
+                    :class="record.outputFormat ? getFormatColor(record.outputFormat) : 'bg-gray-100 text-gray-600'"
+                  >
+                    <component
+                      :is="record.outputFormat ? getFormatIcon(record.outputFormat) : FileText"
+                      class="w-4 h-4"
+                    />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">
+                      {{ record.templateName }}
+                    </p>
+                    <p class="text-xs text-gray-500">
+                      {{ formatDate(record.generatedAt) }} · {{ record.generatedBy }}
+                    </p>
+                  </div>
+                  <span
+                    class="text-xs px-2 py-0.5 rounded-full border"
+                    :class="record.outputFormat ? getFormatColor(record.outputFormat) : 'bg-gray-100 text-gray-600'"
+                  >
+                    {{ record.outputFormat ? outputFormatMap[record.outputFormat].label : '未知' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 bg-gray-50 flex items-center justify-between border-t border-gray-100 flex-shrink-0">
+            <div v-if="selectedTemplate" class="text-sm text-gray-500">
+              已选择：<span class="font-medium text-gray-900">{{ selectedTemplate.name }}</span>
+            </div>
+            <div v-else class="text-sm text-gray-400">
+              请选择一个模板
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                @click="closeDocumentDialog"
+              >
+                取消
+              </button>
+              <button
+                class="px-5 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                :disabled="!selectedTemplate"
+                @click="handleGenerateDocument"
+              >
+                <FileSignature class="w-4 h-4" />
+                生成文书
+              </button>
+            </div>
           </div>
         </div>
       </div>

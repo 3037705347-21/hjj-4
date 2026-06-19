@@ -384,3 +384,108 @@ export interface CaseArchiveListItem extends CaseArchive {
   caseType: string
   responsibleLawyer: string
 }
+
+export enum TemplateType {
+  CASE_COVER = 'case_cover',
+  EVIDENCE_LIST = 'evidence_list',
+  MATERIAL_TRANSFER = 'material_transfer',
+  ENTRUSTMENT_LIST = 'entrustment_list',
+}
+
+export const templateTypeMap: Record<TemplateType, { label: string; description: string }> = {
+  [TemplateType.CASE_COVER]: {
+    label: '案件封面',
+    description: '包含案件基本信息的封面页',
+  },
+  [TemplateType.EVIDENCE_LIST]: {
+    label: '证据目录',
+    description: '整理案件证据材料的目录清单',
+  },
+  [TemplateType.MATERIAL_TRANSFER]: {
+    label: '材料移交清单',
+    description: '用于材料移交时的清单文件',
+  },
+  [TemplateType.ENTRUSTMENT_LIST]: {
+    label: '委托材料目录',
+    description: '整理委托相关材料的目录',
+  },
+}
+
+export enum OutputFormat {
+  EXCEL = 'excel',
+  PDF = 'pdf',
+  WORD = 'word',
+}
+
+export const outputFormatMap: Record<OutputFormat, { label: string; extension: string }> = {
+  [OutputFormat.EXCEL]: { label: 'Excel (.xlsx)', extension: 'xlsx' },
+  [OutputFormat.PDF]: { label: 'PDF (.pdf)', extension: 'pdf' },
+  [OutputFormat.WORD]: { label: 'Word (.docx)', extension: 'docx' },
+}
+
+export interface ContentSchemaField {
+  key: string
+  label: string
+  type: 'text' | 'date' | 'number' | 'array' | 'table'
+  source: 'case' | 'material'
+  required?: boolean
+  description?: string
+}
+
+export interface ContentSchema {
+  title: string
+  fields: ContentSchemaField[]
+  includeHeader?: boolean
+  includeFooter?: boolean
+  pageOrientation?: 'portrait' | 'landscape'
+}
+
+export interface DocumentTemplate {
+  templateId: string
+  name: string
+  type: TemplateType
+  contentSchema: ContentSchema
+  enabledFields: string[]
+  outputFormat: OutputFormat
+  updatedAt: string
+  createdAt?: string
+  description?: string
+  isDefault?: boolean
+}
+
+export interface GenerationRecord {
+  recordId: string
+  templateId: string
+  caseId: string
+  generatedAt: string
+  generatedBy: string
+  fileName?: string
+  fileSize?: string
+  outputFormat?: OutputFormat
+  templateName?: string
+  caseNumber?: string
+  caseName?: string
+}
+
+export const caseFieldDefinitions: Array<{ key: string; label: string; description: string }> = [
+  { key: 'caseNumber', label: '案件编号', description: '案件的唯一编号' },
+  { key: 'name', label: '案件名称', description: '案件的全称' },
+  { key: 'client', label: '我方当事人', description: '原告/申请人' },
+  { key: 'opposingParty', label: '对方当事人', description: '被告/被申请人' },
+  { key: 'caseType', label: '案件类型', description: '民事/刑事/行政等' },
+  { key: 'responsibleLawyer', label: '承办律师', description: '负责本案的律师' },
+  { key: 'filingDate', label: '立案日期', description: '法院立案日期' },
+  { key: 'description', label: '案件描述', description: '案件简介' },
+  { key: 'status', label: '案件状态', description: '待处理/进行中/已结案' },
+]
+
+export const materialFieldDefinitions: Array<{ key: string; label: string; description: string }> = [
+  { key: 'index', label: '序号', description: '自动生成的序号' },
+  { key: 'name', label: '材料名称', description: '材料的名称' },
+  { key: 'type', label: '类型', description: '文件夹/文件' },
+  { key: 'path', label: '路径', description: '材料在目录中的完整路径' },
+  { key: 'uploadDate', label: '上传日期', description: '材料上传日期' },
+  { key: 'uploader', label: '上传人', description: '材料上传人' },
+  { key: 'fileSize', label: '文件大小', description: '文件的大小' },
+  { key: 'description', label: '备注', description: '材料的备注说明' },
+]

@@ -13,6 +13,8 @@ import {
   CalendarDays,
   History,
   MessageSquare,
+  BookTemplate,
+  FileCheck,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -35,6 +37,14 @@ const goToTimeline = () => {
 
 const goToCommunications = () => {
   router.push({ name: 'communication-list' })
+}
+
+const goToTemplates = () => {
+  router.push({ name: 'template-list' })
+}
+
+const goToGenerationRecords = () => {
+  router.push({ name: 'generation-records' })
 }
 
 const features = [
@@ -86,6 +96,18 @@ const features = [
     description: '沉淀案件办理过程中的来电、面谈、微信、邮件和催材料记录，支持时间轴视图和多维度筛选',
     color: 'teal',
   },
+  {
+    icon: BookTemplate,
+    title: '文书模板管理',
+    description: '自定义案件封面、证据目录、材料移交清单等文书模板，支持动态字段配置和格式设置',
+    color: 'amber',
+  },
+  {
+    icon: FileCheck,
+    title: '文书自动生成',
+    description: '基于案件信息和材料清单，一键生成标准化文书，支持 Excel 和 PDF 格式导出',
+    color: 'rose',
+  },
 ]
 
 const colorMap: Record<string, string> = {
@@ -97,6 +119,8 @@ const colorMap: Record<string, string> = {
   red: 'bg-red-50 text-red-600',
   cyan: 'bg-cyan-50 text-cyan-600',
   teal: 'bg-teal-50 text-teal-600',
+  amber: 'bg-amber-50 text-amber-600',
+  rose: 'bg-rose-50 text-rose-600',
 }
 </script>
 
@@ -141,6 +165,20 @@ const colorMap: Record<string, string> = {
           >
             <MessageSquare class="w-4 h-4" />
             沟通记录
+          </button>
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToTemplates"
+          >
+            <BookTemplate class="w-4 h-4" />
+            模板管理
+          </button>
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="goToGenerationRecords"
+          >
+            <FileCheck class="w-4 h-4" />
+            生成记录
           </button>
           <button
             class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
@@ -254,6 +292,20 @@ const colorMap: Record<string, string> = {
             >
               <ClipboardList class="w-5 h-5" />
               任务管理
+            </button>
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"
+              @click="goToTemplates"
+            >
+              <BookTemplate class="w-5 h-5" />
+              模板管理
+            </button>
+            <button
+              class="inline-flex items-center gap-2 px-8 py-3.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20 text-base font-semibold"
+              @click="goToGenerationRecords"
+            >
+              <FileCheck class="w-5 h-5" />
+              生成记录
             </button>
           </div>
         </div>

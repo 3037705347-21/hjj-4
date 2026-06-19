@@ -10,6 +10,9 @@ import CaseTimelinePage from './pages/CaseTimelinePage.vue'
 import CommunicationRecordsPage from './pages/CommunicationRecordsPage.vue'
 import ArchiveListPage from './pages/ArchiveListPage.vue'
 import ArchiveDetailPage from './pages/ArchiveDetailPage.vue'
+import TemplateListPage from './pages/TemplateListPage.vue'
+import TemplateEditPage from './pages/TemplateEditPage.vue'
+import GenerationRecordPage from './pages/GenerationRecordPage.vue'
 import './style.css'
 
 const router = createRouter({
@@ -24,6 +27,10 @@ const router = createRouter({
     { path: '/communications', name: 'communication-list', component: CommunicationRecordsPage },
     { path: '/archives', name: 'archive-list', component: ArchiveListPage },
     { path: '/archives/:id', name: 'archive-detail', component: ArchiveDetailPage },
+    { path: '/templates', name: 'template-list', component: TemplateListPage },
+    { path: '/templates/create', name: 'template-create', component: TemplateEditPage },
+    { path: '/templates/:id', name: 'template-edit', component: TemplateEditPage },
+    { path: '/generation-records', name: 'generation-records', component: GenerationRecordPage },
   ],
 })
 
