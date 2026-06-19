@@ -28,6 +28,9 @@ import {
   MessageSquare,
   FileText as FileTextIcon,
   Plus,
+  Archive,
+  ExternalLink,
+  MapPin,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
@@ -40,8 +43,9 @@ import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { getTemplateByCaseType } from '@/mock/materialTemplates'
 import { computeTaskSummary, refreshOverdueTasks } from '@/mock/tasks'
 import { computeEventSummary, refreshOverdueEvents } from '@/mock/caseEvents'
+import { getArchiveByCaseId, createArchive, generateArchiveCode } from '@/mock/archives'
 import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord, TaskSummary, CaseEventSummary as EventSummaryType } from '@/types'
-import { CaseStatus, MaterialNodeType as NodeType } from '@/types'
+import { CaseStatus, MaterialNodeType as NodeType, ArchiveStatus, archiveStatusMap } from '@/types'
 import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
 import {
@@ -90,6 +94,15 @@ const activeTab = ref<DetailTab>('case-info')
 const showCommunicationForm = ref(false)
 const communicationFormMode = ref<'create' | 'edit'>('create')
 const editingCommunicationRecordId = ref<string | null>(null)
+
+const showArchiveModal = ref(false)
+const archiveForm = ref({
+  archiveCode: '',
+  physicalLocation: '',
+  keeper: '档案管理员-李芳',
+  remark: '',
+})
+const archiveFormErrors = ref<Record<string, string>>({})
 
 const tabs: Array<{ key: DetailTab; label: string; icon: any }> = [
   { key: 'case-info', label: '案件详情', icon: FileTextIcon },
@@ -519,6 +532,76 @@ const handleCommunicationFormCancel = () => {
 const goToCommunicationList = () => {
   activeTab.value = 'communication'
 }
+
+const currentArchive = computed(() => {
+  if (!currentCase.value) return null
+  return getArchiveByCaseId(currentCase.value.id) || null
+})
+
+const isCaseClosed = computed(() => {
+  return currentCase.value?.status === CaseStatus.CLOSED
+})
+
+const hasArchive = computed(() => {
+  return currentArchive.value !== null
+})
+
+const openArchiveModal = () => {
+  archiveForm.value = {
+    archiveCode: generateArchiveCode(),
+    physicalLocation: '',
+    keeper: '档案管理员-李芳',
+    remark: '',
+  }
+  archiveFormErrors.value = {}
+  showArchiveModal.value = true
+}
+
+const closeArchiveModal = () => {
+  showArchiveModal.value = false
+  archiveForm.value = {
+    archiveCode: '',
+    physicalLocation: '',
+    keeper: '',
+    remark: '',
+  }
+  archiveFormErrors.value = {}
+}
+
+const validateArchiveForm = (): boolean => {
+  const errors: Record<string, string> = {}
+
+  if (!archiveForm.value.archiveCode || !archiveForm.value.archiveCode.trim()) {
+    errors.archiveCode = '请输入归档编号'
+  }
+  if (!archiveForm.value.physicalLocation || !archiveForm.value.physicalLocation.trim()) {
+    errors.physicalLocation = '请输入存放位置'
+  }
+  if (!archiveForm.value.keeper || !archiveForm.value.keeper.trim()) {
+    errors.keeper = '请输入保管人'
+  }
+
+  archiveFormErrors.value = errors
+  return Object.keys(errors).length === 0
+}
+
+const handleArchiveSubmit = () => {
+  if (!currentCase.value || !validateArchiveForm()) return
+
+  createArchive(currentCase.value.id, {
+    archiveCode: archiveForm.value.archiveCode.trim(),
+    physicalLocation: archiveForm.value.physicalLocation.trim(),
+    keeper: archiveForm.value.keeper.trim(),
+    remark: archiveForm.value.remark.trim() || undefined,
+  })
+
+  closeArchiveModal()
+}
+
+const goToArchiveDetail = () => {
+  if (!currentArchive.value) return
+  router.push({ name: 'archive-detail', params: { id: currentArchive.value.archiveId } })
+}
 </script>
 
 <template>
@@ -571,6 +654,26 @@ const goToCommunicationList = () => {
             </div>
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
+            <template v-if="isCaseClosed">
+              <template v-if="hasArchive">
+                <button
+                  class="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-sm"
+                  @click="goToArchiveDetail"
+                >
+                  <ExternalLink class="w-4 h-4" />
+                  查看归档
+                </button>
+              </template>
+              <template v-else>
+                <button
+                  class="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-sm"
+                  @click="openArchiveModal"
+                >
+                  <Archive class="w-4 h-4" />
+                  创建归档
+                </button>
+              </template>
+            </template>
             <div class="relative">
               <button
                 class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -1479,6 +1582,125 @@ const goToCommunicationList = () => {
         @submit="handleCommunicationFormSubmit"
         @cancel="handleCommunicationFormCancel"
       />
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showArchiveModal && currentCase" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50" @click="closeArchiveModal"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-bold text-gray-900">创建归档</h3>
+            <button
+              class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="closeArchiveModal"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex items-start gap-3">
+              <CheckCircle2 class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-medium text-green-800">案件已结案</p>
+                <p class="text-xs text-green-600 mt-0.5">
+                  案件「{{ currentCase.caseNumber }}」状态为已结案，可以创建归档记录。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-5">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                归档编号 <span class="text-red-500">*</span>
+              </label>
+              <input
+                v-model="archiveForm.archiveCode"
+                type="text"
+                class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :class="{ 'border-red-300 bg-red-50': archiveFormErrors.archiveCode }"
+                placeholder="例如：GD-2026-0001"
+                @blur="validateArchiveForm"
+              />
+              <p v-if="archiveFormErrors.archiveCode" class="mt-1 text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle class="w-3 h-3" />
+                {{ archiveFormErrors.archiveCode }}
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                存放位置 <span class="text-red-500">*</span>
+              </label>
+              <div class="relative">
+                <MapPin class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  v-model="archiveForm.physicalLocation"
+                  type="text"
+                  class="w-full pl-10 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  :class="{ 'border-red-300 bg-red-50': archiveFormErrors.physicalLocation }"
+                  placeholder="例如：档案柜 A-03"
+                  @blur="validateArchiveForm"
+                />
+              </div>
+              <p v-if="archiveFormErrors.physicalLocation" class="mt-1 text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle class="w-3 h-3" />
+                {{ archiveFormErrors.physicalLocation }}
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                保管人 <span class="text-red-500">*</span>
+              </label>
+              <div class="relative">
+                <User class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  v-model="archiveForm.keeper"
+                  type="text"
+                  class="w-full pl-10 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  :class="{ 'border-red-300 bg-red-50': archiveFormErrors.keeper }"
+                  placeholder="例如：档案管理员-李芳"
+                  @blur="validateArchiveForm"
+                />
+              </div>
+              <p v-if="archiveFormErrors.keeper" class="mt-1 text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle class="w-3 h-3" />
+                {{ archiveFormErrors.keeper }}
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                备注说明
+              </label>
+              <textarea
+                v-model="archiveForm.remark"
+                rows="3"
+                class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                placeholder="输入归档备注说明..."
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+            <button
+              class="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+              @click="closeArchiveModal"
+            >
+              取消
+            </button>
+            <button
+              class="px-4 py-2 text-sm text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors shadow-sm font-medium flex items-center gap-1.5"
+              @click="handleArchiveSubmit"
+            >
+              <Archive class="w-4 h-4" />
+              确认创建
+            </button>
+          </div>
+        </div>
+      </div>
     </Teleport>
     </template>
   </div>

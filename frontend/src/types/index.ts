@@ -308,3 +308,79 @@ export interface CommunicationSummary {
   pendingFollowUp: number
   recentRecords: CommunicationRecord[]
 }
+
+export enum ArchiveStatus {
+  PENDING = 'pending',
+  ARCHIVED = 'archived',
+  BORROWED = 'borrowed',
+  RETURNED = 'returned',
+}
+
+export const archiveStatusMap: Record<ArchiveStatus, { label: string; class: string }> = {
+  [ArchiveStatus.PENDING]: {
+    label: '待归档',
+    class: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  },
+  [ArchiveStatus.ARCHIVED]: {
+    label: '已归档',
+    class: 'bg-green-100 text-green-800 border-green-200',
+  },
+  [ArchiveStatus.BORROWED]: {
+    label: '已借出',
+    class: 'bg-red-100 text-red-800 border-red-200',
+  },
+  [ArchiveStatus.RETURNED]: {
+    label: '已归还',
+    class: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+}
+
+export interface BorrowRecord {
+  borrowId: string
+  archiveId: string
+  borrower: string
+  borrowDate: string
+  expectedReturnDate?: string
+  returnDate?: string
+  borrowReason: string
+  approver?: string
+  remark?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExportRecord {
+  exportId: string
+  archiveId: string
+  exportType: 'excel' | 'pdf'
+  exportDate: string
+  exporter: string
+  exportRange: string
+  remark?: string
+}
+
+export interface CaseArchive {
+  archiveId: string
+  caseId: string
+  archiveCode: string
+  archiveDate: string
+  archiveStatus: ArchiveStatus
+  physicalLocation: string
+  keeper: string
+  borrower?: string
+  borrowDate?: string
+  returnDate?: string
+  remark?: string
+  materialCount: number
+  exportRecords: ExportRecord[]
+  borrowHistory: BorrowRecord[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CaseArchiveListItem extends CaseArchive {
+  caseNumber: string
+  caseName: string
+  caseType: string
+  responsibleLawyer: string
+}

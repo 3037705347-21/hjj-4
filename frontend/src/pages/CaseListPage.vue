@@ -17,6 +17,7 @@ import {
   ClipboardList,
   History,
   MessageSquare,
+  Archive,
 } from 'lucide-vue-next'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
@@ -41,6 +42,10 @@ const goToTimeline = () => {
 
 const goToCommunications = () => {
   router.push({ name: 'communication-list' })
+}
+
+const goToArchives = () => {
+  router.push({ name: 'archive-list' })
 }
 
 const cases = ref<Case[]>([...mockCases])
@@ -182,6 +187,13 @@ const cancelDelete = () => {
             >
               <MessageSquare class="w-5 h-5 text-teal-600" />
               沟通记录
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="goToArchives"
+            >
+              <Archive class="w-5 h-5 text-orange-600" />
+              卷宗归档
             </button>
             <button
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"

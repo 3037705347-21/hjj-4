@@ -8,6 +8,8 @@ import TaskListPage from './pages/TaskListPage.vue'
 import CaseCalendarPage from './pages/CaseCalendarPage.vue'
 import CaseTimelinePage from './pages/CaseTimelinePage.vue'
 import CommunicationRecordsPage from './pages/CommunicationRecordsPage.vue'
+import ArchiveListPage from './pages/ArchiveListPage.vue'
+import ArchiveDetailPage from './pages/ArchiveDetailPage.vue'
 import './style.css'
 
 const router = createRouter({
@@ -20,6 +22,8 @@ const router = createRouter({
     { path: '/calendar', name: 'case-calendar', component: CaseCalendarPage },
     { path: '/timeline', name: 'case-timeline', component: CaseTimelinePage },
     { path: '/communications', name: 'communication-list', component: CommunicationRecordsPage },
+    { path: '/archives', name: 'archive-list', component: ArchiveListPage },
+    { path: '/archives/:id', name: 'archive-detail', component: ArchiveDetailPage },
   ],
 })
 
