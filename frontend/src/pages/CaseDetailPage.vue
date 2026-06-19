@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -18,13 +18,28 @@ import {
   CheckCircle2,
   AlertCircle,
   Settings,
+  RefreshCw,
+  ListChecks,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
-import { mockCases, caseStatusMap } from '@/mock/data'
-import type { Case, MaterialNode } from '@/types'
-import { MaterialNodeType as NodeType } from '@/types'
+import { mockCases, caseStatusMap, generateId } from '@/mock/data'
+import { getTemplateByCaseType } from '@/mock/materialTemplates'
+import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord } from '@/types'
+import { CaseStatus, MaterialNodeType as NodeType } from '@/types'
 import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
+import {
+  checkMaterialCompleteness,
+  validateStatusTransition,
+  createStatusChangeRecord,
+  getAvailableTransitions,
+  type MaterialCompletenessResult,
+} from '@/utils/caseWorkflow'
 
 const route = useRoute()
 const router = useRouter()
@@ -46,6 +61,17 @@ const isEditing = ref(false)
 const editForm = ref<Partial<MaterialNode>>({})
 const originalNode = ref<MaterialNode | null>(null)
 const formErrors = ref<Record<string, string>>({})
+
+const showStatusDialog = ref(false)
+const pendingStatus = ref<CaseStatusType | null>(null)
+const statusRemark = ref('')
+const statusValidationErrors = ref<string[]>([])
+
+const showMaterialCheckPanel = ref(true)
+const showCompletedList = ref(true)
+const showMissingList = ref(true)
+
+const statusHistory = ref<StatusChangeRecord[]>([])
 
 const handleKeydown = (e: KeyboardEvent) => {
   if (!isEditing.value) return
@@ -75,6 +101,7 @@ onMounted(() => {
   if (found) {
     currentCase.value = found
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
+    statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
   }
   window.addEventListener('keydown', handleKeydown)
 })
@@ -306,6 +333,117 @@ const hasChanges = computed(() => {
 
   return false
 })
+
+const materialCompleteness = computed<MaterialCompletenessResult>(() => {
+  if (!currentCase.value) {
+    return {
+      totalRequired: 0,
+      completedRequired: 0,
+      totalItems: 0,
+      completedItems: 0,
+      missingRequired: 0,
+      missingCount: 0,
+      completedList: [],
+      missingList: [],
+    }
+  }
+  const caseWithMaterials = { ...currentCase.value, materials: currentMaterials.value }
+  return checkMaterialCompleteness(caseWithMaterials)
+})
+
+const hasTemplate = computed(() => {
+  if (!currentCase.value) return false
+  return !!getTemplateByCaseType(currentCase.value.caseType)
+})
+
+const completenessPercent = computed(() => {
+  if (materialCompleteness.value.totalRequired === 0) return 0
+  return Math.round(
+    (materialCompleteness.value.completedRequired / materialCompleteness.value.totalRequired) * 100
+  )
+})
+
+const availableStatusOptions = computed(() => {
+  if (!currentCase.value) return []
+  return getAvailableTransitions(currentCase.value.status)
+})
+
+const openStatusChange = () => {
+  if (!currentCase.value) return
+  pendingStatus.value = currentCase.value.status
+  statusRemark.value = ''
+  statusValidationErrors.value = []
+  showStatusDialog.value = true
+}
+
+const cancelStatusChange = () => {
+  showStatusDialog.value = false
+  pendingStatus.value = null
+  statusRemark.value = ''
+  statusValidationErrors.value = []
+}
+
+const handlePendingStatusChange = (status: CaseStatusType) => {
+  if (!currentCase.value) return
+  pendingStatus.value = status
+  const validation = validateStatusTransition(
+    currentCase.value,
+    currentCase.value.status,
+    status,
+    currentMaterials.value
+  )
+  statusValidationErrors.value = validation.errors
+}
+
+const confirmStatusChange = () => {
+  if (!currentCase.value || !pendingStatus.value) return
+
+  const validation = validateStatusTransition(
+    currentCase.value,
+    currentCase.value.status,
+    pendingStatus.value,
+    currentMaterials.value
+  )
+
+  if (!validation.valid) {
+    statusValidationErrors.value = validation.errors
+    return
+  }
+
+  if (currentCase.value.status !== pendingStatus.value) {
+    const record = createStatusChangeRecord(
+      currentCase.value.status,
+      pendingStatus.value,
+      statusRemark.value.trim() || '状态变更'
+    )
+    statusHistory.value = [record, ...statusHistory.value]
+
+    currentCase.value.status = pendingStatus.value
+    currentCase.value.statusHistory = statusHistory.value
+
+    const idx = mockCases.findIndex(c => c.id === currentCase.value!.id)
+    if (idx !== -1) {
+      mockCases[idx].status = pendingStatus.value
+      mockCases[idx].statusHistory = statusHistory.value
+    }
+  }
+
+  cancelStatusChange()
+}
+
+const formatTimestamp = (ts: string): string => {
+  try {
+    const d = new Date(ts)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return ts
+  }
+}
+
+const getStatusLabel = (status: CaseStatusType | null): string => {
+  if (!status) return '新建'
+  return caseStatusMap[status]?.label || status
+}
 </script>
 
 <template>
@@ -332,14 +470,26 @@ const hasChanges = computed(() => {
               <ArrowLeft class="w-5 h-5" />
             </button>
             <div class="min-w-0">
-              <div class="flex items-center gap-3 mb-1">
-                <span class="px-2.5 py-0.5 text-xs font-medium rounded-full border flex-shrink-0"
-                  :class="caseStatusMap[currentCase.status].class">
+              <div class="flex items-center gap-3 mb-1 flex-wrap">
+                <button
+                  class="px-2.5 py-0.5 text-xs font-medium rounded-full border flex-shrink-0 flex items-center gap-1.5 hover:ring-2 hover:ring-offset-1 hover:ring-blue-300 transition-all group"
+                  :class="caseStatusMap[currentCase.status].class"
+                  @click="openStatusChange"
+                  title="点击变更状态"
+                >
                   {{ caseStatusMap[currentCase.status].label }}
-                </span>
+                  <RefreshCw class="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                </button>
                 <span class="text-xs text-gray-400 font-mono truncate">{{ currentCase.caseNumber }}</span>
                 <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded flex-shrink-0">
                   {{ currentCase.caseType }}
+                </span>
+                <span
+                  v-if="hasTemplate && materialCompleteness.missingRequired > 0"
+                  class="px-2 py-0.5 text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded flex items-center gap-1 flex-shrink-0"
+                >
+                  <AlertTriangle class="w-3 h-3" />
+                  材料缺失 {{ materialCompleteness.missingRequired }} 项
                 </span>
               </div>
               <h1 class="text-lg font-bold text-gray-900 truncate">{{ currentCase.name }}</h1>
@@ -433,6 +583,153 @@ const hasChanges = computed(() => {
           <h2 class="text-sm font-semibold text-gray-700">案件描述</h2>
         </div>
         <p class="text-sm text-gray-600 leading-relaxed">{{ currentCase.description }}</p>
+      </div>
+
+      <div v-if="hasTemplate" class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
+        <button
+          class="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          @click="showMaterialCheckPanel = !showMaterialCheckPanel"
+        >
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-lg" :class="completenessPercent === 100 ? 'bg-green-50' : 'bg-orange-50'">
+              <ListChecks class="w-5 h-5" :class="completenessPercent === 100 ? 'text-green-600' : 'text-orange-600'" />
+            </div>
+            <div class="text-left">
+              <h2 class="text-sm font-semibold text-gray-900">材料完整性校验</h2>
+              <p class="text-xs text-gray-500 mt-0.5">
+                根据「{{ currentCase.caseType }}」标准模板校验 · 必填 {{ materialCompleteness.completedRequired }}/{{ materialCompleteness.totalRequired }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-40 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300"
+                  :class="completenessPercent === 100 ? 'bg-green-500' : completenessPercent >= 60 ? 'bg-blue-500' : 'bg-orange-500'"
+                  :style="{ width: `${completenessPercent}%` }"
+                ></div>
+              </div>
+              <span class="text-sm font-semibold" :class="completenessPercent === 100 ? 'text-green-600' : completenessPercent >= 60 ? 'text-blue-600' : 'text-orange-600'">
+                {{ completenessPercent }}%
+              </span>
+            </div>
+            <ChevronUp v-if="showMaterialCheckPanel" class="w-5 h-5 text-gray-400" />
+            <ChevronDown v-else class="w-5 h-5 text-gray-400" />
+          </div>
+        </button>
+
+        <div v-if="showMaterialCheckPanel" class="border-t border-gray-100 px-5 py-4 space-y-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-blue-50 rounded-lg p-3">
+              <p class="text-xs text-blue-600 font-medium">标准目录项</p>
+              <p class="text-xl font-bold text-blue-700 mt-1">{{ materialCompleteness.totalItems }}</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3">
+              <p class="text-xs text-green-600 font-medium">已完成</p>
+              <p class="text-xl font-bold text-green-700 mt-1">{{ materialCompleteness.completedItems }}</p>
+            </div>
+            <div class="bg-orange-50 rounded-lg p-3">
+              <p class="text-xs text-orange-600 font-medium">缺失总数</p>
+              <p class="text-xl font-bold text-orange-700 mt-1">{{ materialCompleteness.missingCount }}</p>
+            </div>
+            <div class="bg-red-50 rounded-lg p-3">
+              <p class="text-xs text-red-600 font-medium">必填缺失</p>
+              <p class="text-xl font-bold text-red-700 mt-1">{{ materialCompleteness.missingRequired }}</p>
+            </div>
+          </div>
+
+          <div>
+            <button
+              class="flex items-center gap-2 mb-3 text-sm"
+              @click="showCompletedList = !showCompletedList"
+            >
+              <CheckCircle class="w-4 h-4 text-green-500" />
+              <span class="font-medium text-gray-700">已完成清单</span>
+              <span class="text-xs text-gray-500">({{ materialCompleteness.completedList.length }})</span>
+              <ChevronUp v-if="showCompletedList" class="w-4 h-4 text-gray-400 ml-auto" />
+              <ChevronDown v-else class="w-4 h-4 text-gray-400 ml-auto" />
+            </button>
+            <div v-if="showCompletedList && materialCompleteness.completedList.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto">
+              <div
+                v-for="item in materialCompleteness.completedList"
+                :key="item.path"
+                class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
+              >
+                <Folder v-if="item.type === 'folder'" class="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                <FileText v-else class="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <span class="text-sm text-gray-700 truncate flex-1">{{ item.path }}</span>
+                <CheckCircle2 class="w-4 h-4 text-green-500 flex-shrink-0" />
+              </div>
+            </div>
+            <div v-if="showCompletedList && materialCompleteness.completedList.length === 0" class="text-sm text-gray-400 px-3 py-2">
+              暂无已完成的材料
+            </div>
+          </div>
+
+          <div>
+            <button
+              class="flex items-center gap-2 mb-3 text-sm"
+              @click="showMissingList = !showMissingList"
+            >
+              <XCircle class="w-4 h-4 text-red-500" />
+              <span class="font-medium text-gray-700">缺失清单</span>
+              <span class="text-xs text-gray-500">({{ materialCompleteness.missingList.length }})</span>
+              <ChevronUp v-if="showMissingList" class="w-4 h-4 text-gray-400 ml-auto" />
+              <ChevronDown v-else class="w-4 h-4 text-gray-400 ml-auto" />
+            </button>
+            <div v-if="showMissingList && materialCompleteness.missingList.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto">
+              <div
+                v-for="item in materialCompleteness.missingList"
+                :key="item.path"
+                class="flex items-center gap-2 px-3 py-2 rounded-lg"
+                :class="item.required ? 'bg-red-50' : 'bg-gray-50'"
+              >
+                <Folder v-if="item.type === 'folder'" class="w-4 h-4 flex-shrink-0" :class="item.required ? 'text-red-500' : 'text-gray-400'" />
+                <FileText v-else class="w-4 h-4 flex-shrink-0" :class="item.required ? 'text-red-500' : 'text-gray-400'" />
+                <span class="text-sm truncate flex-1" :class="item.required ? 'text-red-700' : 'text-gray-600'">{{ item.path }}</span>
+                <span v-if="item.required" class="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded flex-shrink-0">必填</span>
+                <span v-else class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">可选</span>
+              </div>
+            </div>
+            <div v-if="showMissingList && materialCompleteness.missingList.length === 0" class="text-sm text-green-600 px-3 py-2 flex items-center gap-1.5">
+              <CheckCircle2 class="w-4 h-4" />
+              所有材料均已齐备
+            </div>
+          </div>
+
+          <div v-if="statusHistory.length > 0">
+            <div class="flex items-center gap-2 mb-3 pt-2 border-t border-gray-100">
+              <Clock class="w-4 h-4 text-gray-400" />
+              <span class="text-sm font-medium text-gray-700">状态变更历史</span>
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="record in statusHistory"
+                :key="record.id"
+                class="flex items-start gap-3 px-3 py-2.5 bg-gray-50 rounded-lg"
+              >
+                <div class="flex flex-col items-center pt-0.5">
+                  <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs px-2 py-0.5 rounded border" :class="record.fromStatus ? caseStatusMap[record.fromStatus].class : 'bg-gray-100 text-gray-600 border-gray-200'">
+                      {{ getStatusLabel(record.fromStatus) }}
+                    </span>
+                    <span class="text-xs text-gray-400">→</span>
+                    <span class="text-xs px-2 py-0.5 rounded border" :class="caseStatusMap[record.toStatus].class">
+                      {{ getStatusLabel(record.toStatus) }}
+                    </span>
+                    <span class="text-xs text-gray-400 ml-auto">{{ formatTimestamp(record.timestamp) }}</span>
+                  </div>
+                  <p class="text-sm text-gray-600 mt-1">{{ record.remark }}</p>
+                  <p class="text-xs text-gray-400 mt-0.5">操作人：{{ record.operator }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" style="min-height: 600px;">
@@ -877,6 +1174,130 @@ const hasChanges = computed(() => {
             >
               <FileDown class="w-4 h-4" />
               确认导出
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="showStatusDialog && currentCase"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="cancelStatusChange"
+      >
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <RefreshCw class="w-5 h-5 text-blue-600" />
+              变更案件状态
+            </h3>
+            <button
+              class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="cancelStatusChange"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="px-6 py-5 space-y-5">
+            <div>
+              <p class="text-sm text-gray-500 mb-1">当前状态</p>
+              <span class="inline-block px-2.5 py-1 text-sm font-medium rounded-full border"
+                :class="caseStatusMap[currentCase.status].class">
+                {{ caseStatusMap[currentCase.status].label }}
+              </span>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">目标状态 <span class="text-red-500">*</span></label>
+              <div class="space-y-2">
+                <label
+                  v-for="status in availableStatusOptions"
+                  :key="status"
+                  class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors"
+                  :class="[
+                    pendingStatus === status
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  ]"
+                >
+                  <input
+                    type="radio"
+                    :value="status"
+                    v-model="pendingStatus"
+                    @change="handlePendingStatusChange(status)"
+                    class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span class="px-2 py-0.5 text-xs font-medium rounded-full border"
+                    :class="caseStatusMap[status].class">
+                    {{ caseStatusMap[status].label }}
+                  </span>
+                  <span v-if="status === currentCase.status" class="text-xs text-gray-400 ml-auto">（当前）</span>
+                </label>
+              </div>
+            </div>
+
+            <div v-if="pendingStatus && pendingStatus !== currentCase.status">
+              <label class="block text-sm font-medium text-gray-700 mb-2">变更说明 <span class="text-red-500">*</span></label>
+              <textarea
+                v-model="statusRemark"
+                rows="3"
+                class="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                placeholder="请输入状态变更的原因或说明..."
+              ></textarea>
+              <p class="text-xs text-gray-400 mt-1">建议简要说明本次状态变更的背景和原因</p>
+            </div>
+
+            <div v-if="statusValidationErrors.length > 0" class="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div class="flex items-start gap-2">
+                <AlertCircle class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                <div class="space-y-1">
+                  <p class="text-sm font-medium text-red-800">无法完成状态变更：</p>
+                  <ul class="text-xs text-red-700 space-y-0.5 list-disc list-inside">
+                    <li v-for="(err, idx) in statusValidationErrors" :key="idx">{{ err }}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="pendingStatus === CaseStatus.IN_PROGRESS && pendingStatus !== currentCase.status" class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div class="flex items-start gap-2">
+                <Info class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <p class="text-xs text-blue-700">
+                  <strong>校验规则：</strong>从「待处理」切换到「进行中」时，案件至少需要存在一个根级材料目录。
+                </p>
+              </div>
+            </div>
+
+            <div v-if="pendingStatus === CaseStatus.CLOSED && pendingStatus !== currentCase.status" class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div class="flex items-start gap-2">
+                <Info class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div class="text-xs text-blue-700 space-y-1">
+                  <p><strong>校验规则：</strong>从「进行中」切换到「已结案」时需满足：</p>
+                  <ul class="list-disc list-inside space-y-0.5 pl-1">
+                    <li>材料文件总数必须大于 0</li>
+                    <li>关键字段（当事人、对方当事人、承办律师、立案日期、案件描述）不得为空</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3 border-t border-gray-100">
+            <button
+              class="px-4 py-2 text-sm text-gray-600 bg-white hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+              @click="cancelStatusChange"
+            >
+              取消
+            </button>
+            <button
+              class="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              :disabled="!pendingStatus || statusValidationErrors.length > 0 || (pendingStatus !== currentCase.status && !statusRemark.trim())"
+              @click="confirmStatusChange"
+            >
+              <CheckCircle2 class="w-4 h-4" />
+              确认变更
             </button>
           </div>
         </div>

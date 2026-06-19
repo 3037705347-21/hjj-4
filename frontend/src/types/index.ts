@@ -9,6 +9,27 @@ export enum CaseStatus {
   CLOSED = 'closed',
 }
 
+export interface StatusChangeRecord {
+  id: string
+  fromStatus: CaseStatus | null
+  toStatus: CaseStatus
+  remark: string
+  operator: string
+  timestamp: string
+}
+
+export interface MaterialTemplateItem {
+  name: string
+  type: MaterialNodeType
+  required?: boolean
+  children?: MaterialTemplateItem[]
+}
+
+export interface MaterialTemplate {
+  caseType: string
+  items: MaterialTemplateItem[]
+}
+
 export interface MaterialNode {
   id: string
   name: string
@@ -33,6 +54,7 @@ export interface Case {
   filingDate: string
   description: string
   materials: MaterialNode[]
+  statusHistory?: StatusChangeRecord[]
 }
 
 export interface FlatMaterialItem {

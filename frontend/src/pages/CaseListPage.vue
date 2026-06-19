@@ -12,18 +12,21 @@ import {
   ChevronRight,
   Edit3,
   Trash2,
+  AlertTriangle,
 } from 'lucide-vue-next'
 import { mockCases, caseStatusMap, generateId } from '@/mock/data'
 import { countFiles } from '@/utils/treeUtils'
 import { CaseStatus } from '@/types'
 import type { Case, CaseStatus as CaseStatusType } from '@/types'
 import CaseFormModal from '@/components/CaseFormModal.vue'
+import { getMissingCount } from '@/utils/caseWorkflow'
 
 const router = useRouter()
 
 const cases = ref<Case[]>([...mockCases])
 const searchQuery = ref('')
 const statusFilter = ref<CaseStatusType | 'all'>('all')
+const missingFilter = ref<'all' | 'has_missing' | 'no_missing'>('all')
 
 const showFormModal = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
@@ -41,15 +44,24 @@ const filteredCases = computed(() => {
 
     const matchesStatus = statusFilter.value === 'all' || c.status === statusFilter.value
 
-    return matchesSearch && matchesStatus
+    const missingCount = getMissingCount(c)
+    const matchesMissing =
+      missingFilter.value === 'all' ||
+      (missingFilter.value === 'has_missing' && missingCount > 0) ||
+      (missingFilter.value === 'no_missing' && missingCount === 0)
+
+    return matchesSearch && matchesStatus && matchesMissing
   })
 })
+
+const casesWithMissing = computed(() => cases.value.filter(c => getMissingCount(c) > 0).length)
 
 const goToDetail = (caseItem: Case) => {
   router.push({ name: 'case-detail', params: { id: caseItem.id } })
 }
 
 const getFileCount = (caseItem: Case) => countFiles(caseItem.materials)
+const getCaseMissingCount = (caseItem: Case) => getMissingCount(caseItem)
 
 const handleCreate = () => {
   formMode.value = 'create'
@@ -134,7 +146,7 @@ const cancelDelete = () => {
     </header>
 
     <main class="max-w-7xl mx-auto px-6 py-8">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div class="flex items-center gap-3">
             <div class="p-3 bg-blue-50 rounded-lg">
@@ -179,11 +191,22 @@ const cancelDelete = () => {
             </div>
           </div>
         </div>
+        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="p-3 rounded-lg" :class="casesWithMissing > 0 ? 'bg-orange-50' : 'bg-emerald-50'">
+              <AlertTriangle class="w-6 h-6" :class="casesWithMissing > 0 ? 'text-orange-600' : 'text-emerald-600'" />
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">材料缺失</p>
+              <p class="text-2xl font-bold" :class="casesWithMissing > 0 ? 'text-orange-600' : 'text-emerald-600'">{{ casesWithMissing }}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="p-4 border-b border-gray-100">
-          <div class="flex flex-col sm:flex-row gap-3">
+          <div class="flex flex-col lg:flex-row gap-3">
             <div class="relative flex-1">
               <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -193,17 +216,30 @@ const cancelDelete = () => {
                 class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            <div class="flex items-center gap-2">
-              <Filter class="w-5 h-5 text-gray-400" />
-              <select
-                v-model="statusFilter"
-                class="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">全部状态</option>
-                <option value="pending">待处理</option>
-                <option value="in_progress">进行中</option>
-                <option value="closed">已结案</option>
-              </select>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-2">
+                <Filter class="w-5 h-5 text-gray-400" />
+                <select
+                  v-model="statusFilter"
+                  class="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">全部状态</option>
+                  <option value="pending">待处理</option>
+                  <option value="in_progress">进行中</option>
+                  <option value="closed">已结案</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <AlertTriangle class="w-5 h-5 text-gray-400" />
+                <select
+                  v-model="missingFilter"
+                  class="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">全部材料状态</option>
+                  <option value="has_missing">材料缺失</option>
+                  <option value="no_missing">材料齐备</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -217,7 +253,7 @@ const cancelDelete = () => {
           >
             <div class="flex items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-3 mb-2">
+                <div class="flex items-center gap-3 mb-2 flex-wrap">
                   <span class="px-2.5 py-1 text-xs font-medium rounded-full border"
                     :class="caseStatusMap[caseItem.status].class">
                     {{ caseStatusMap[caseItem.status].label }}
@@ -225,6 +261,13 @@ const cancelDelete = () => {
                   <span class="text-xs text-gray-400 font-mono">{{ caseItem.caseNumber }}</span>
                   <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
                     {{ caseItem.caseType }}
+                  </span>
+                  <span
+                    v-if="getCaseMissingCount(caseItem) > 0"
+                    class="px-2 py-0.5 text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded flex items-center gap-1"
+                  >
+                    <AlertTriangle class="w-3 h-3" />
+                    材料缺失 {{ getCaseMissingCount(caseItem) }} 项
                   </span>
                 </div>
                 <h3 class="text-base font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
