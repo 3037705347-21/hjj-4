@@ -323,3 +323,25 @@ export const countFiles = (nodes: MaterialNode[]): number => {
   }
   return count
 }
+
+export const hasDuplicateName = (
+  nodes: MaterialNode[],
+  parentId: string | null,
+  name: string,
+  excludeId?: string
+): boolean => {
+  const parent = parentId ? findNodeById(nodes, parentId) : null
+  const siblings = parent ? parent.children || [] : nodes
+
+  return siblings.some(
+    sibling => sibling.id !== excludeId && sibling.name === name
+  )
+}
+
+export const getSiblings = (
+  nodes: MaterialNode[],
+  nodeId: string
+): MaterialNode[] => {
+  const parent = findParentNode(nodes, nodeId)
+  return parent ? parent.children || nodes : nodes
+}

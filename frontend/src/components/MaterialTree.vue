@@ -318,8 +318,14 @@ const handleDrop = (targetId: string | null, position: 'inside' | 'before' | 'af
   draggingNodeId.value = null
 }
 
+const setSelectedNode = (node: MaterialNode) => {
+  selectedNodeId.value = node.id
+  emit('select', node)
+}
+
 defineExpose({
   getMaterials: () => localMaterials.value,
+  setSelectedNode,
 })
 </script>
 

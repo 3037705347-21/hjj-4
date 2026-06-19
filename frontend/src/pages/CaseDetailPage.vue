@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -13,12 +13,16 @@ import {
   HardDrive,
   Edit3,
   Info,
+  Save,
+  X,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import { mockCases, caseStatusMap } from '@/mock/data'
 import type { Case, MaterialNode } from '@/types'
 import { MaterialNodeType as NodeType } from '@/types'
-import { flattenMaterialTree } from '@/utils/treeUtils'
+import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 const route = useRoute()
@@ -31,6 +35,33 @@ const currentMaterials = ref<MaterialNode[]>([])
 const showExportMenu = ref(false)
 const filteredCounts = ref<{ files: number; folders: number } | null>(null)
 
+const isEditing = ref(false)
+const editForm = ref<Partial<MaterialNode>>({})
+const originalNode = ref<MaterialNode | null>(null)
+const formErrors = ref<Record<string, string>>({})
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (!isEditing.value) return
+
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    if (hasChanges.value) {
+      if (confirm('有未保存的更改，确定要取消吗？')) {
+        cancelEdit()
+      }
+    } else {
+      cancelEdit()
+    }
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault()
+    if (hasChanges.value) {
+      saveEdit()
+    }
+  }
+}
+
 onMounted(() => {
   const caseId = route.params.id as string
   const found = mockCases.find(c => c.id === caseId)
@@ -38,13 +69,36 @@ onMounted(() => {
     currentCase.value = found
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
   }
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 
 const goBack = () => {
+  if (isEditing.value && hasChanges.value) {
+    if (confirm('有未保存的更改，确定要离开吗？')) {
+      cancelEdit()
+    } else {
+      return
+    }
+  }
   router.push({ name: 'case-list' })
 }
 
 const handleSelectNode = (node: MaterialNode | null) => {
+  if (isEditing.value) {
+    if (hasChanges.value) {
+      if (confirm('有未保存的更改，确定要切换节点吗？')) {
+        cancelEdit()
+      } else {
+        return
+      }
+    } else {
+      cancelEdit()
+    }
+  }
   selectedNode.value = node
 }
 
@@ -79,6 +133,100 @@ const folderCount = computed(() => {
 const handleFilteredCount = (counts: { files: number; folders: number }) => {
   filteredCounts.value = counts
 }
+
+const startEdit = () => {
+  if (!selectedNode.value) return
+  originalNode.value = JSON.parse(JSON.stringify(selectedNode.value))
+  editForm.value = { ...selectedNode.value }
+  formErrors.value = {}
+  isEditing.value = true
+}
+
+const cancelEdit = () => {
+  isEditing.value = false
+  editForm.value = {}
+  formErrors.value = {}
+  originalNode.value = null
+}
+
+const validateForm = (): boolean => {
+  const errors: Record<string, string> = {}
+  const form = editForm.value
+
+  if (!form.name || !form.name.trim()) {
+    errors.name = '名称不能为空'
+  } else if (form.name.trim() !== form.name) {
+    errors.name = '名称不能包含首尾空格'
+  } else if (originalNode.value && form.name !== originalNode.value.name) {
+    const parent = findParentNode(currentMaterials.value, originalNode.value.id)
+    const parentId = parent ? parent.id : null
+    if (hasDuplicateName(currentMaterials.value, parentId, form.name.trim(), originalNode.value.id)) {
+      errors.name = '当前父级下已存在同名节点'
+    }
+  }
+
+  formErrors.value = errors
+  return Object.keys(errors).length === 0
+}
+
+const saveEdit = () => {
+  if (!selectedNode.value || !originalNode.value) return
+
+  if (!validateForm()) return
+
+  const trimmedName = editForm.value.name?.trim() || ''
+  const updates: Partial<MaterialNode> = {
+    name: trimmedName,
+    description: editForm.value.description?.trim(),
+  }
+
+  if (selectedNode.value.type === NodeType.FILE) {
+    updates.uploader = editForm.value.uploader?.trim() || undefined
+    updates.uploadDate = editForm.value.uploadDate || undefined
+    updates.fileSize = editForm.value.fileSize?.trim() || undefined
+  }
+
+  if (selectedNode.value.type === NodeType.FOLDER) {
+    updates.expanded = editForm.value.expanded
+  }
+
+  currentMaterials.value = updateNodeById(currentMaterials.value, originalNode.value.id, updates)
+
+  const updatedNode = { ...selectedNode.value, ...updates }
+  selectedNode.value = updatedNode
+  if (treeRef.value) {
+    treeRef.value.setSelectedNode(updatedNode)
+  }
+
+  handleMaterialsUpdate(currentMaterials.value)
+
+  isEditing.value = false
+  editForm.value = {}
+  formErrors.value = {}
+  originalNode.value = null
+}
+
+const hasChanges = computed(() => {
+  if (!originalNode.value || !editForm.value) return false
+
+  const o = originalNode.value
+  const e = editForm.value
+
+  if ((e.name?.trim() || '') !== o.name) return true
+  if ((e.description?.trim() || '') !== (o.description || '')) return true
+
+  if (o.type === NodeType.FILE) {
+    if ((e.uploader?.trim() || '') !== (o.uploader || '')) return true
+    if ((e.uploadDate || '') !== (o.uploadDate || '')) return true
+    if ((e.fileSize?.trim() || '') !== (o.fileSize || '')) return true
+  }
+
+  if (o.type === NodeType.FOLDER) {
+    if (!!e.expanded !== !!o.expanded) return true
+  }
+
+  return false
+})
 </script>
 
 <template>
@@ -242,7 +390,7 @@ const handleFilteredCount = (counts: { files: number; folders: number }) => {
             材料详情
           </h2>
           <div class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div v-if="selectedNode" class="p-5">
+            <div v-if="selectedNode" class="p-5 flex flex-col h-full">
               <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
                 <div class="p-3 rounded-xl"
                   :class="selectedNode.type === NodeType.FOLDER ? 'bg-yellow-50' : 'bg-blue-50'">
@@ -250,67 +398,228 @@ const handleFilteredCount = (counts: { files: number; folders: number }) => {
                   <FileText v-else class="w-8 h-8 text-blue-500" />
                 </div>
                 <div class="flex-1 min-w-0">
-                  <h3 class="font-semibold text-gray-900 truncate">{{ selectedNode.name }}</h3>
+                  <h3 class="font-semibold text-gray-900 truncate">
+                    {{ isEditing ? editForm.name : selectedNode.name }}
+                  </h3>
                   <p class="text-sm text-gray-500 mt-0.5">
                     {{ selectedNode.type === NodeType.FOLDER ? '文件夹' : '文件' }}
                   </p>
                 </div>
-                <button
-                  class="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
-                  title="编辑"
-                >
-                  <Edit3 class="w-4 h-4" />
-                </button>
-              </div>
-
-              <div class="mt-4 space-y-4">
-                <div>
-                  <p class="text-xs text-gray-500 mb-1.5">类型</p>
-                  <p class="text-sm text-gray-900">
-                    {{ selectedNode.type === NodeType.FOLDER ? '文件夹' : '文件' }}
-                  </p>
-                </div>
-
-                <template v-if="selectedNode.type === NodeType.FILE">
-                  <div>
-                    <p class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                      <User class="w-3 h-3" />
-                      上传人
-                    </p>
-                    <p class="text-sm text-gray-900">{{ selectedNode.uploader || '-' }}</p>
-                  </div>
-
-                  <div>
-                    <p class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                      <Clock class="w-3 h-3" />
-                      上传日期
-                    </p>
-                    <p class="text-sm text-gray-900">{{ selectedNode.uploadDate || '-' }}</p>
-                  </div>
-
-                  <div>
-                    <p class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                      <HardDrive class="w-3 h-3" />
-                      文件大小
-                    </p>
-                    <p class="text-sm text-gray-900">{{ selectedNode.fileSize || '-' }}</p>
-                  </div>
+                <template v-if="!isEditing">
+                  <button
+                    class="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
+                    title="编辑"
+                    @click="startEdit"
+                  >
+                    <Edit3 class="w-4 h-4" />
+                  </button>
                 </template>
-
-                <div v-if="selectedNode.type === NodeType.FOLDER">
-                  <p class="text-xs text-gray-500 mb-1.5">包含内容</p>
-                  <p class="text-sm text-gray-900">
-                    {{ selectedNode.children?.length || 0 }} 项
-                  </p>
-                </div>
-
-                <div>
-                  <p class="text-xs text-gray-500 mb-1.5">备注说明</p>
-                  <p class="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-                    {{ selectedNode.description || '暂无备注' }}
-                  </p>
-                </div>
+                <template v-else>
+                  <button
+                    class="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
+                    title="取消"
+                    @click="cancelEdit"
+                  >
+                    <X class="w-4 h-4" />
+                  </button>
+                  <button
+                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="保存"
+                    :disabled="!hasChanges"
+                    @click="saveEdit"
+                  >
+                    <Save class="w-4 h-4" />
+                  </button>
+                </template>
               </div>
+
+              <template v-if="!isEditing">
+                <div class="mt-4 space-y-4 flex-1 overflow-y-auto">
+                  <div>
+                    <p class="text-xs text-gray-500 mb-1.5">类型</p>
+                    <p class="text-sm text-gray-900">
+                      {{ selectedNode.type === NodeType.FOLDER ? '文件夹' : '文件' }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p class="text-xs text-gray-500 mb-1.5">名称</p>
+                    <p class="text-sm text-gray-900">{{ selectedNode.name }}</p>
+                  </div>
+
+                  <template v-if="selectedNode.type === NodeType.FILE">
+                    <div>
+                      <p class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                        <User class="w-3 h-3" />
+                        上传人
+                      </p>
+                      <p class="text-sm text-gray-900">{{ selectedNode.uploader || '-' }}</p>
+                    </div>
+
+                    <div>
+                      <p class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                        <Clock class="w-3 h-3" />
+                        上传日期
+                      </p>
+                      <p class="text-sm text-gray-900">{{ selectedNode.uploadDate || '-' }}</p>
+                    </div>
+
+                    <div>
+                      <p class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                        <HardDrive class="w-3 h-3" />
+                        文件大小
+                      </p>
+                      <p class="text-sm text-gray-900">{{ selectedNode.fileSize || '-' }}</p>
+                    </div>
+                  </template>
+
+                  <div v-if="selectedNode.type === NodeType.FOLDER">
+                    <p class="text-xs text-gray-500 mb-1.5">包含内容</p>
+                    <p class="text-sm text-gray-900">
+                      {{ selectedNode.children?.length || 0 }} 项
+                    </p>
+                  </div>
+
+                  <div v-if="selectedNode.type === NodeType.FOLDER">
+                    <p class="text-xs text-gray-500 mb-1.5">展开状态</p>
+                    <p class="text-sm text-gray-900">
+                      {{ selectedNode.expanded ? '已展开' : '已折叠' }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p class="text-xs text-gray-500 mb-1.5">备注说明</p>
+                    <p class="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+                      {{ selectedNode.description || '暂无备注' }}
+                    </p>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="mt-4 space-y-4 flex-1 overflow-y-auto">
+                  <div>
+                    <p class="text-xs text-gray-500 mb-1.5">类型</p>
+                    <p class="text-sm text-gray-900">
+                      {{ selectedNode.type === NodeType.FOLDER ? '文件夹' : '文件' }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1.5 block">名称 <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="editForm.name"
+                      type="text"
+                      class="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                      :class="formErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+                      placeholder="请输入名称"
+                      @blur="validateForm"
+                    />
+                    <p v-if="formErrors.name" class="mt-1 text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle class="w-3 h-3" />
+                      {{ formErrors.name }}
+                    </p>
+                  </div>
+
+                  <template v-if="selectedNode.type === NodeType.FILE">
+                    <div>
+                      <label class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                        <User class="w-3 h-3" />
+                        上传人
+                      </label>
+                      <input
+                        v-model="editForm.uploader"
+                        type="text"
+                        class="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="请输入上传人"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                        <Clock class="w-3 h-3" />
+                        上传日期
+                      </label>
+                      <input
+                        v-model="editForm.uploadDate"
+                        type="date"
+                        class="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                        <HardDrive class="w-3 h-3" />
+                        文件大小
+                      </label>
+                      <input
+                        v-model="editForm.fileSize"
+                        type="text"
+                        class="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="例如：2.5 MB"
+                      />
+                    </div>
+                  </template>
+
+                  <div v-if="selectedNode.type === NodeType.FOLDER">
+                    <p class="text-xs text-gray-500 mb-1.5">包含内容</p>
+                    <p class="text-sm text-gray-900">
+                      {{ selectedNode.children?.length || 0 }} 项
+                    </p>
+                  </div>
+
+                  <div v-if="selectedNode.type === NodeType.FOLDER">
+                    <label class="text-xs text-gray-500 mb-1.5 block">展开状态</label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input
+                        v-model="editForm.expanded"
+                        type="checkbox"
+                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span class="text-sm text-gray-700">在树中默认展开</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1.5 block">备注说明</label>
+                    <textarea
+                      v-model="editForm.description"
+                      rows="4"
+                      class="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      placeholder="请输入备注说明"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div v-if="isEditing" class="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between">
+                  <div class="text-xs text-gray-500">
+                    <span v-if="hasChanges" class="text-amber-600 flex items-center gap-1">
+                      <AlertCircle class="w-3 h-3" />
+                      有未保存的更改
+                    </span>
+                    <span v-else class="text-green-600 flex items-center gap-1">
+                      <CheckCircle2 class="w-3 h-3" />
+                      暂无更改
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      @click="cancelEdit"
+                    >
+                      取消
+                    </button>
+                    <button
+                      class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      :disabled="!hasChanges"
+                      @click="saveEdit"
+                    >
+                      <Save class="w-4 h-4" />
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </template>
             </div>
 
             <div v-else class="h-full flex flex-col items-center justify-center p-8 text-center">
