@@ -14,6 +14,7 @@ import {
   FolderTree,
   Clock,
   ChevronRight,
+  Upload,
 } from 'lucide-vue-next'
 import ReportFilter from '@/components/ReportFilter.vue'
 import { useReportStats } from '@/composables/useReportStats'
@@ -138,7 +139,7 @@ const maxMaterialRank = computed(() => {
         @export="handleExport"
       />
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
         <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div class="flex items-center gap-3">
             <div class="p-3 bg-blue-50 rounded-lg">
@@ -180,6 +181,17 @@ const maxMaterialRank = computed(() => {
             <div>
               <p class="text-sm text-gray-500">材料总数</p>
               <p class="text-2xl font-bold text-gray-900">{{ materialStats.totalFiles }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="p-3 bg-sky-50 rounded-lg">
+              <Upload class="w-6 h-6 text-sky-600" />
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">最近新增材料</p>
+              <p class="text-2xl font-bold text-gray-900">{{ materialStats.recentMaterialsCount }}</p>
             </div>
           </div>
         </div>

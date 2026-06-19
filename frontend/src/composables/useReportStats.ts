@@ -41,6 +41,7 @@ export interface MaterialStats {
   minPerCase: number
   casesWithMissing: number
   missingCases: Case[]
+  missingCaseDetails: MissingCaseItem[]
   recentMaterials: Array<{
     caseId: string
     caseName: string
@@ -48,6 +49,15 @@ export interface MaterialStats {
     uploadDate: string
     uploader: string
   }>
+  recentMaterialsCount: number
+}
+
+export interface MissingCaseItem {
+  caseId: string
+  caseName: string
+  caseNumber: string
+  responsibleLawyer: string
+  missingCount: number
 }
 
 export interface CaseMaterialRank {
@@ -159,6 +169,7 @@ export function useReportStats() {
     let maxPerCase = 0
     let minPerCase = Infinity
     const casesWithMissingArr: Case[] = []
+    const missingCaseDetailsArr: MissingCaseItem[] = []
     const allRecentMaterials: Array<{
       caseId: string
       caseName: string
@@ -176,8 +187,16 @@ export function useReportStats() {
       const folderCount = countFolders(c.materials)
       totalFolders += folderCount
 
-      if (getMissingCount(c) > 0) {
+      const missingCount = getMissingCount(c)
+      if (missingCount > 0) {
         casesWithMissingArr.push(c)
+        missingCaseDetailsArr.push({
+          caseId: c.id,
+          caseName: c.name,
+          caseNumber: c.caseNumber,
+          responsibleLawyer: c.responsibleLawyer,
+          missingCount,
+        })
       }
 
       const flatMaterials = flattenMaterialTree(c.materials)
@@ -198,6 +217,8 @@ export function useReportStats() {
       .sort((a, b) => b.uploadDate.localeCompare(a.uploadDate))
       .slice(0, 10)
 
+    missingCaseDetailsArr.sort((a, b) => b.missingCount - a.missingCount)
+
     return {
       totalFiles,
       totalFolders,
@@ -206,7 +227,9 @@ export function useReportStats() {
       minPerCase: minPerCase === Infinity ? 0 : minPerCase,
       casesWithMissing: casesWithMissingArr.length,
       missingCases: casesWithMissingArr,
+      missingCaseDetails: missingCaseDetailsArr,
       recentMaterials,
+      recentMaterialsCount: allRecentMaterials.length,
     }
   })
 

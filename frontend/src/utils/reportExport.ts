@@ -6,6 +6,7 @@ import type {
   MaterialStats,
   CaseMaterialRank,
   ReportFilters,
+  MissingCaseItem,
 } from '@/composables/useReportStats'
 
 interface ReportOverviewExportData {
@@ -64,6 +65,7 @@ export const exportReportOverview = (data: ReportOverviewExportData) => {
     ['每案平均材料数', data.materialStats.avgPerCase],
     ['单案最多材料数', data.materialStats.maxPerCase],
     ['单案最少材料数', data.materialStats.minPerCase],
+    ['最近新增材料数', data.materialStats.recentMaterialsCount],
     ['材料缺失案件数', data.materialStats.casesWithMissing],
   ]
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
@@ -114,6 +116,20 @@ export const exportReportOverview = (data: ReportOverviewExportData) => {
   const wsRecent = XLSX.utils.aoa_to_sheet(recentData)
   wsRecent['!cols'] = [{ wch: 30 }, { wch: 40 }, { wch: 15 }, { wch: 15 }]
   XLSX.utils.book_append_sheet(wb, wsRecent, '最近新增')
+
+  const missingData = [
+    ['材料缺失案件', '', '', '', ''],
+    ['案件名称', '案号', '承办律师', '缺失材料数', ''],
+    ...data.materialStats.missingCaseDetails.map(c => [
+      c.caseName,
+      c.caseNumber,
+      c.responsibleLawyer,
+      c.missingCount,
+    ]),
+  ]
+  const wsMissing = XLSX.utils.aoa_to_sheet(missingData)
+  wsMissing['!cols'] = [{ wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 10 }]
+  XLSX.utils.book_append_sheet(wb, wsMissing, '缺失案件')
 
   XLSX.writeFile(wb, generateFileName('统计报表总览'))
 }
@@ -185,6 +201,7 @@ export const exportMaterialStats = (data: MaterialStatsExportData) => {
     ['每案平均材料数', data.materialStats.avgPerCase],
     ['单案最多材料数', data.materialStats.maxPerCase],
     ['单案最少材料数', data.materialStats.minPerCase],
+    ['最近新增材料数', data.materialStats.recentMaterialsCount],
     ['材料缺失案件数', data.materialStats.casesWithMissing],
   ]
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
@@ -203,11 +220,11 @@ export const exportMaterialStats = (data: MaterialStatsExportData) => {
   const missingData = [
     ['材料缺失案件', '', '', '', ''],
     ['案件名称', '案号', '承办律师', '缺失材料数', ''],
-    ...data.materialStats.missingCases.map(c => [
-      c.name,
+    ...data.materialStats.missingCaseDetails.map(c => [
+      c.caseName,
       c.caseNumber,
       c.responsibleLawyer,
-      '',
+      c.missingCount,
     ]),
   ]
   const wsMissing = XLSX.utils.aoa_to_sheet(missingData)

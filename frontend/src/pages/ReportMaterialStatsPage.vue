@@ -12,11 +12,11 @@ import {
   Briefcase,
   TrendingUp,
   ChevronRight,
+  Upload,
 } from 'lucide-vue-next'
 import ReportFilter from '@/components/ReportFilter.vue'
 import { useReportStats } from '@/composables/useReportStats'
 import { exportMaterialStats } from '@/utils/reportExport'
-import { getMissingCount } from '@/utils/caseWorkflow'
 
 const router = useRouter()
 
@@ -51,16 +51,6 @@ const handleExport = () => {
 const maxMaterialRank = computed(() => {
   if (caseMaterialRank.value.length === 0) return 0
   return Math.max(...caseMaterialRank.value.map(c => c.materialCount))
-})
-
-const missingCasesWithCount = computed(() => {
-  return materialStats.value.missingCases.map(c => ({
-    id: c.id,
-    name: c.name,
-    caseNumber: c.caseNumber,
-    responsibleLawyer: c.responsibleLawyer,
-    missingCount: getMissingCount(c),
-  })).sort((a, b) => b.missingCount - a.missingCount)
 })
 </script>
 
@@ -114,7 +104,7 @@ const missingCasesWithCount = computed(() => {
         @export="handleExport"
       />
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-8">
         <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div class="flex items-center gap-3">
             <div class="p-3 bg-blue-50 rounded-lg">
@@ -167,6 +157,17 @@ const missingCasesWithCount = computed(() => {
             <div>
               <p class="text-sm text-gray-500">最少材料</p>
               <p class="text-2xl font-bold text-gray-900">{{ materialStats.minPerCase }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="p-3 bg-sky-50 rounded-lg">
+              <Upload class="w-6 h-6 text-sky-600" />
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">最近新增</p>
+              <p class="text-2xl font-bold text-gray-900">{{ materialStats.recentMaterialsCount }}</p>
             </div>
           </div>
         </div>
@@ -238,13 +239,13 @@ const missingCasesWithCount = computed(() => {
           <div class="p-5">
             <div class="space-y-3">
               <div
-                v-for="item in missingCasesWithCount"
-                :key="item.id"
+                v-for="item in materialStats.missingCaseDetails"
+                :key="item.caseId"
                 class="p-3 bg-orange-50 rounded-lg border border-orange-100"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-gray-900 truncate">{{ item.name }}</p>
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ item.caseName }}</p>
                     <p class="text-xs text-gray-500 mt-0.5">{{ item.caseNumber }}</p>
                     <p class="text-xs text-gray-400 mt-0.5">{{ item.responsibleLawyer }}</p>
                   </div>
@@ -255,7 +256,7 @@ const missingCasesWithCount = computed(() => {
                   </div>
                 </div>
               </div>
-              <div v-if="missingCasesWithCount.length === 0" class="py-8 text-center">
+              <div v-if="materialStats.missingCaseDetails.length === 0" class="py-8 text-center">
                 <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-emerald-50 flex items-center justify-center">
                   <AlertTriangle class="w-8 h-8 text-emerald-500" />
                 </div>
