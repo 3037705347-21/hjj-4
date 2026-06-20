@@ -33,7 +33,7 @@ export const useCasesStore = defineStore('cases', () => {
     if (isInitialized.value) return
 
     const stored = loadFromStorage()
-    if (stored && stored.length > 0) {
+    if (stored !== null) {
       cases.value = stored
     } else {
       cases.value = generateDemoCases()
