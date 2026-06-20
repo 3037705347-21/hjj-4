@@ -51,6 +51,13 @@ export const canPreview = (mimeType: string): { previewable: boolean; type: 'ima
   return { previewable: false, type: 'none' }
 }
 
+export const canActuallyPreview = (fileItem: FileStorageItem | null): { previewable: boolean; type: 'image' | 'pdf' | 'text' | 'none' } => {
+  if (!fileItem || fileItem.isPlaceholder || !fileItem.data) {
+    return { previewable: false, type: 'none' }
+  }
+  return canPreview(fileItem.mimeType)
+}
+
 export const getFileIconType = (mimeType: string, extension: string): 'pdf' | 'excel' | 'word' | 'image' | 'text' | 'zip' | 'audio' | 'video' | 'other' => {
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType === 'application/pdf') return 'pdf'

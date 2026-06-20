@@ -74,6 +74,7 @@ import type { DocumentTemplate, TemplateType, GenerationRecord } from '@/types'
 import { TemplateType as TT, templateTypeMap, OutputFormat, outputFormatMap } from '@/types'
 import {
   canPreview,
+  canActuallyPreview,
   getFile,
   downloadFile,
   openFileInNewTab,
@@ -795,6 +796,18 @@ const getNodeFileIconColor = (node: MaterialNode) => {
   }
 }
 
+const isFilePlaceholder = (node: MaterialNode | null): boolean => {
+  if (!node || node.type !== NodeType.FILE || !node.fileDataId) return false
+  const fileItem = getFile(node.fileDataId)
+  return !!fileItem?.isPlaceholder || !fileItem?.data
+}
+
+const isFileActuallyPreviewable = (node: MaterialNode | null): { previewable: boolean; type: 'image' | 'pdf' | 'text' | 'none' } => {
+  if (!node || node.type !== NodeType.FILE || !node.fileDataId) return { previewable: false, type: 'none' }
+  const fileItem = getFile(node.fileDataId)
+  return canActuallyPreview(fileItem)
+}
+
 const handlePreviewFile = async (node: MaterialNode) => {
   if (!node.fileDataId || node.type !== NodeType.FILE) return
 
@@ -1292,6 +1305,7 @@ const closeFilePreview = () => {
                 <template v-if="!isEditing">
                   <template v-if="selectedNode.type === NodeType.FILE && selectedNode.fileDataId">
                     <button
+                      v-if="isFileActuallyPreviewable(selectedNode).previewable"
                       class="p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 rounded-lg transition-colors"
                       title="预览"
                       @click="handlePreviewFile(selectedNode)"
@@ -1388,32 +1402,46 @@ const closeFilePreview = () => {
 
                     <div>
                       <p class="text-xs text-gray-500 mb-1.5">存储状态</p>
-                      <div class="flex items-center gap-2">
+                      <div class="flex flex-col gap-1.5">
                         <span
-                          v-if="selectedNode.fileDataId"
-                          class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-green-50 text-green-700 rounded-full"
+                          v-if="selectedNode.fileDataId && !isFilePlaceholder(selectedNode)"
+                          class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-green-50 text-green-700 rounded-full w-fit"
                         >
-                          <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                          文件内容已存储
+                          <CheckCircle2 class="w-3 h-3" />
+                          原文件已存储
+                        </span>
+                        <span
+                          v-else-if="selectedNode.fileDataId && isFilePlaceholder(selectedNode)"
+                          class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-amber-50 text-amber-700 rounded-full w-fit"
+                        >
+                          <AlertTriangle class="w-3 h-3" />
+                          仅元数据占位（原文件内容未保存）
                         </span>
                         <span
                           v-else
-                          class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-amber-50 text-amber-700 rounded-full"
+                          class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded-full w-fit"
                         >
-                          <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                          仅元数据
+                          <XCircle class="w-3 h-3" />
+                          无文件数据
                         </span>
                       </div>
+                      <p
+                        v-if="selectedNode.fileDataId && isFilePlaceholder(selectedNode)"
+                        class="text-xs text-amber-600 mt-1.5 leading-relaxed bg-amber-50 px-2 py-1.5 rounded"
+                      >
+                        该文件体积较大或存储失败，仅保存了文件名、大小等元数据。
+                        无法在线预览或下载原文件内容。
+                      </p>
                     </div>
 
                     <div
-                      v-if="selectedNode.fileDataId && selectedNode.mimeType && canPreview(selectedNode.mimeType).previewable"
+                      v-if="selectedNode.fileDataId && isFileActuallyPreviewable(selectedNode).previewable"
                       class="pt-2"
                     >
                       <div class="flex items-center justify-between mb-2">
                         <p class="text-xs text-gray-500 flex items-center gap-1">
                           <Eye class="w-3 h-3" />
-                          预览
+                          文件预览
                         </p>
                         <button
                           class="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
@@ -1424,25 +1452,26 @@ const closeFilePreview = () => {
                         </button>
                       </div>
                       <div
-                        class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden min-h-[200px] flex items-center justify-center">
+                        class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden min-h-[200px] flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors"
+                        @click="handlePreviewFile(selectedNode)"
+                      >
                         <img
-                          v-if="canPreview(selectedNode.mimeType).type === 'image'"
+                          v-if="isFileActuallyPreviewable(selectedNode).type === 'image'"
                           :src="getFile(selectedNode.fileDataId!)?.data"
                           :alt="selectedNode.name"
                           class="max-w-full max-h-[300px] object-contain"
-                          @click="handlePreviewFile(selectedNode)"
                         />
                         <div
-                          v-else-if="canPreview(selectedNode.mimeType).type === 'pdf'"
+                          v-else-if="isFileActuallyPreviewable(selectedNode).type === 'pdf'"
                           class="w-full h-[300px]"
                         >
                           <iframe
                             :src="getFile(selectedNode.fileDataId!)?.data"
-                            class="w-full h-full"
+                            class="w-full h-full pointer-events-none"
                           ></iframe>
                         </div>
                         <div
-                          v-else-if="canPreview(selectedNode.mimeType).type === 'text'"
+                          v-else-if="isFileActuallyPreviewable(selectedNode).type === 'text'"
                           class="w-full p-3 text-xs text-gray-600 font-mono max-h-[300px] overflow-auto whitespace-pre-wrap"
                         >
                           {{ (() => {
@@ -1451,16 +1480,28 @@ const closeFilePreview = () => {
                             return decodeBase64Text(f.data);
                           })() }}
                         </div>
-                        <div
-                          v-else
-                          class="text-center py-8"
-                        >
-                          <component
-                            :is="getNodeFileIcon(selectedNode)"
-                            :class="['w-12 h-12 mx-auto mb-2', getNodeFileIconColor(selectedNode)]"
-                          />
-                          <p class="text-sm text-gray-500">点击上方预览按钮查看</p>
-                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      v-else-if="selectedNode.fileDataId && selectedNode.mimeType && canPreview(selectedNode.mimeType).previewable && isFilePlaceholder(selectedNode)"
+                      class="pt-2"
+                    >
+                      <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs text-gray-500 flex items-center gap-1">
+                          <Eye class="w-3 h-3" />
+                          文件预览
+                        </p>
+                      </div>
+                      <div
+                        class="bg-amber-50 border border-amber-200 rounded-lg min-h-[160px] flex flex-col items-center justify-center p-4"
+                      >
+                        <AlertTriangle class="w-10 h-10 text-amber-500 mb-3" />
+                        <p class="text-sm text-amber-800 font-medium text-center mb-1">无法预览</p>
+                        <p class="text-xs text-amber-600 text-center leading-relaxed">
+                          该文件为元数据占位，原文件内容未存储，无法在线预览。
+                          如需预览，请重新上传该文件。
+                        </p>
                       </div>
                     </div>
                   </template>
