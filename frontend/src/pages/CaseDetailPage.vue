@@ -176,19 +176,33 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 }
 
-onMounted(() => {
-  const caseId = route.params.id as string
+const loadCaseData = (caseId: string) => {
+  if (isEditing.value && hasChanges.value) {
+    if (!confirm('有未保存的更改，确定要离开当前案件吗？')) {
+      router.push({ name: 'case-detail', params: { id: currentCase.value?.id || caseId } })
+      return false
+    }
+    cancelEdit()
+  }
+
   const found = store.getCaseById(caseId)
   if (found) {
     currentCase.value = { ...found }
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
     statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
     loadGenerationRecords()
+  } else {
+    currentCase.value = null
+    currentMaterials.value = []
+    statusHistory.value = []
+    generationRecords.value = []
   }
-  availableTemplates.value = getTemplates()
-  refreshOverdueTasks()
-  refreshOverdueEvents()
-  window.addEventListener('keydown', handleKeydown)
+  selectedNode.value = null
+  showMaterialCheckPanel.value = true
+  showCompletedList.value = true
+  showMissingList.value = true
+  activeTab.value = 'case-info'
+  isEditing.value = false
 
   const highlightNodeId = route.query.highlight as string | undefined
   if (highlightNodeId && found) {
@@ -212,33 +226,60 @@ onMounted(() => {
       }, 200)
     })
   }
+
+  archiveVersion.value++
+  return true
+}
+
+const handleHighlightChange = (highlightId: string) => {
+  if (!highlightId || currentMaterials.value.length === 0) return
+  currentMaterials.value = expandPathToNode(currentMaterials.value, highlightId)
+  handleMaterialsUpdate(currentMaterials.value)
+  nextTick(() => {
+    const node = findNodeById(currentMaterials.value, highlightId)
+    if (node) {
+      selectedNode.value = node
+      if (treeRef.value) {
+        treeRef.value.setSelectedNodeId(highlightId)
+      }
+    }
+  })
+  nextTick(() => {
+    setTimeout(() => {
+      if (treeRef.value) {
+        treeRef.value.scrollToNodeId(highlightId)
+        treeRef.value.flashHighlightNodeId(highlightId)
+      }
+    }, 200)
+  })
+}
+
+onMounted(() => {
+  availableTemplates.value = getTemplates()
+  refreshOverdueTasks()
+  refreshOverdueEvents()
+  window.addEventListener('keydown', handleKeydown)
+
+  const caseId = route.params.id as string
+  loadCaseData(caseId)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-watch(() => route.query.highlight, (newHighlight) => {
-  if (newHighlight && typeof newHighlight === 'string' && currentMaterials.value.length > 0) {
-    currentMaterials.value = expandPathToNode(currentMaterials.value, newHighlight)
-    handleMaterialsUpdate(currentMaterials.value)
-    nextTick(() => {
-      const node = findNodeById(currentMaterials.value, newHighlight)
-      if (node) {
-        selectedNode.value = node
-        if (treeRef.value) {
-          treeRef.value.setSelectedNodeId(newHighlight)
-        }
-      }
-    })
-    nextTick(() => {
-      setTimeout(() => {
-        if (treeRef.value) {
-          treeRef.value.scrollToNodeId(newHighlight)
-          treeRef.value.flashHighlightNodeId(newHighlight)
-        }
-      }, 200)
-    })
+watch(
+  () => route.params.id,
+  (newCaseId, oldCaseId) => {
+    if (newCaseId && newCaseId !== oldCaseId) {
+      loadCaseData(newCaseId as string)
+    }
+  }
+)
+
+watch(() => route.query.highlight, (newHighlight, oldHighlight) => {
+  if (newHighlight && typeof newHighlight === 'string' && newHighlight !== oldHighlight) {
+    handleHighlightChange(newHighlight)
   }
 })
 

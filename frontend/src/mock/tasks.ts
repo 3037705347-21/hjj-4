@@ -383,9 +383,9 @@ export const updateTask = (id: string, updates: Partial<Omit<CaseTask, 'id' | 'c
   }
 
   if (newStatus === TaskStatus.COMPLETED && !oldTask.completedAt) {
-    ;(updates as any).completedAt = new Date().toISOString()
+    (updates as any).completedAt = new Date().toISOString()
   } else if (newStatus !== TaskStatus.COMPLETED && oldTask.completedAt) {
-    ;(updates as any).completedAt = undefined
+    (updates as any).completedAt = undefined
   }
 
   mockTasks[idx] = {

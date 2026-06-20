@@ -185,7 +185,7 @@ function openCreateForm(dateStr?: string) {
       if (dateStr) {
         const modal = document.querySelector('[data-event-form-date]')
         if (modal) {
-          ;(modal as HTMLInputElement).value = dateStr
+          (modal as HTMLInputElement).value = dateStr
         }
       }
     }, 0)
