@@ -40,6 +40,12 @@ export interface MaterialNode {
   fileSize?: string
   description?: string
   expanded?: boolean
+  fileExtension?: string
+  mimeType?: string
+  fileDataId?: string
+  isUploading?: boolean
+  uploadProgress?: number
+  uploadError?: string
 }
 
 export interface Case {

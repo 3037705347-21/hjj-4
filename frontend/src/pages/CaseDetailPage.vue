@@ -34,6 +34,15 @@ import {
   FileSignature,
   History,
   FileType,
+  FileImage,
+  FileArchive,
+  Music,
+  Video,
+  File,
+  Download,
+  Eye,
+  Maximize2,
+  Filter,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
@@ -63,6 +72,15 @@ import { generateDocument } from '@/utils/documentGenerator'
 import { getTemplates, getGenerationRecordsByCaseId } from '@/mock/documentTemplates'
 import type { DocumentTemplate, TemplateType, GenerationRecord } from '@/types'
 import { TemplateType as TT, templateTypeMap, OutputFormat, outputFormatMap } from '@/types'
+import {
+  canPreview,
+  getFile,
+  downloadFile,
+  openFileInNewTab,
+  getFileIconType,
+  formatFileSize,
+  deleteFile,
+} from '@/utils/fileStorage'
 
 type DetailTab = 'case-info' | 'communication'
 
@@ -125,6 +143,10 @@ const archiveForm = ref({
 })
 const archiveFormErrors = ref<Record<string, string>>({})
 const archiveVersion = ref(0)
+
+const showFilePreview = ref(false)
+const previewFileData = ref<{ dataUrl: string; mimeType: string; name: string; type: 'image' | 'pdf' | 'text' } | null>(null)
+const previewTextContent = ref<string>('')
 
 const tabs: Array<{ key: DetailTab; label: string; icon: any }> = [
   { key: 'case-info', label: '案件详情', icon: FileTextIcon },
@@ -740,6 +762,107 @@ const formatDate = (dateStr: string): string => {
     return dateStr
   }
 }
+
+const getNodeFileIcon = (node: MaterialNode) => {
+  if (node.type !== NodeType.FILE) return null
+  const iconType = getFileIconType(node.mimeType || '', node.fileExtension || '')
+  switch (iconType) {
+    case 'pdf': return FileType
+    case 'excel': return FileSpreadsheet
+    case 'word': return FileText
+    case 'image': return FileImage
+    case 'zip': return FileArchive
+    case 'audio': return Music
+    case 'video': return Video
+    case 'text': return FileText
+    default: return File
+  }
+}
+
+const getNodeFileIconColor = (node: MaterialNode) => {
+  if (node.type !== NodeType.FILE) return 'text-blue-500'
+  const iconType = getFileIconType(node.mimeType || '', node.fileExtension || '')
+  switch (iconType) {
+    case 'pdf': return 'text-red-500'
+    case 'excel': return 'text-green-600'
+    case 'word': return 'text-blue-600'
+    case 'image': return 'text-purple-500'
+    case 'zip': return 'text-amber-600'
+    case 'audio': return 'text-pink-500'
+    case 'video': return 'text-orange-500'
+    case 'text': return 'text-gray-500'
+    default: return 'text-blue-500'
+  }
+}
+
+const handlePreviewFile = async (node: MaterialNode) => {
+  if (!node.fileDataId || node.type !== NodeType.FILE) return
+
+  const fileItem = getFile(node.fileDataId)
+  if (!fileItem) {
+    alert('文件不存在或已被清理')
+    return
+  }
+
+  if (fileItem.isPlaceholder || !fileItem.data) {
+    alert('该文件仅存储了元数据，无法预览原始内容。\n\n' +
+      `文件名：${fileItem.name}\n` +
+      `大小：${formatFileSize(fileItem.fileSize)}\n` +
+      `类型：${fileItem.mimeType}\n` +
+      `上传日期：${fileItem.uploadDate}`)
+    return
+  }
+
+  const previewInfo = canPreview(fileItem.mimeType)
+  if (!previewInfo.previewable) {
+    if (confirm('该文件类型暂不支持在线预览，是否下载？')) {
+      downloadFile(node.fileDataId, node.name)
+    }
+    return
+  }
+
+  if (previewInfo.type === 'text') {
+    try {
+      const base64Data = fileItem.data.split(',')[1]
+      previewTextContent.value = atob(base64Data)
+    } catch (e) {
+      previewTextContent.value = '无法解析文本内容'
+    }
+  }
+
+  previewFileData.value = {
+    dataUrl: fileItem.data,
+    mimeType: fileItem.mimeType,
+    name: node.name,
+    type: previewInfo.type as 'image' | 'pdf' | 'text',
+  }
+  showFilePreview.value = true
+}
+
+const decodeBase64Text = (base64DataUrl: string): string => {
+  try {
+    const base64Data = base64DataUrl.split(',')[1]
+    return atob(base64Data)
+  } catch {
+    return '无法解析文本'
+  }
+}
+
+const handleDownloadFile = (node: MaterialNode) => {
+  if (!node.fileDataId || node.type !== NodeType.FILE) return
+  downloadFile(node.fileDataId, node.name)
+}
+
+const handleOpenFileNewTab = (node: MaterialNode) => {
+  if (!node.fileDataId || node.type !== NodeType.FILE) return
+  openFileInNewTab(node.fileDataId)
+}
+
+const closeFilePreview = () => {
+  showFilePreview.value = false
+  previewFileData.value = null
+  previewTextContent.value = ''
+}
 </script>
 
 <template>
@@ -1149,7 +1272,11 @@ const formatDate = (dateStr: string): string => {
                 <div class="p-3 rounded-xl"
                   :class="selectedNode.type === NodeType.FOLDER ? 'bg-yellow-50' : 'bg-blue-50'">
                   <Folder v-if="selectedNode.type === NodeType.FOLDER" class="w-8 h-8 text-yellow-500" />
-                  <FileText v-else class="w-8 h-8 text-blue-500" />
+                  <component
+                    v-else
+                    :is="getNodeFileIcon(selectedNode)"
+                    :class="['w-8 h-8', getNodeFileIconColor(selectedNode)]"
+                  />
                 </div>
                 <div class="flex-1 min-w-0">
                   <h3 class="font-semibold text-gray-900 truncate">
@@ -1157,9 +1284,28 @@ const formatDate = (dateStr: string): string => {
                   </h3>
                   <p class="text-sm text-gray-500 mt-0.5">
                     {{ selectedNode.type === NodeType.FOLDER ? '文件夹' : '文件' }}
+                    <span v-if="selectedNode.type === NodeType.FILE && selectedNode.fileExtension" class="ml-1">
+                      · {{ selectedNode.fileExtension.toUpperCase() }}
+                    </span>
                   </p>
                 </div>
                 <template v-if="!isEditing">
+                  <template v-if="selectedNode.type === NodeType.FILE && selectedNode.fileDataId">
+                    <button
+                      class="p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 rounded-lg transition-colors"
+                      title="预览"
+                      @click="handlePreviewFile(selectedNode)"
+                    >
+                      <Eye class="w-4 h-4" />
+                    </button>
+                    <button
+                      class="p-2 text-gray-400 hover:bg-gray-100 hover:text-green-600 rounded-lg transition-colors"
+                      title="下载"
+                      @click="handleDownloadFile(selectedNode)"
+                    >
+                      <Download class="w-4 h-4" />
+                    </button>
+                  </template>
                   <button
                     class="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
                     title="编辑"
@@ -1224,6 +1370,98 @@ const formatDate = (dateStr: string): string => {
                         文件大小
                       </p>
                       <p class="text-sm text-gray-900">{{ selectedNode.fileSize || '-' }}</p>
+                    </div>
+
+                    <template v-if="selectedNode.fileExtension">
+                      <div>
+                        <p class="text-xs text-gray-500 mb-1.5">文件类型</p>
+                        <p class="text-sm text-gray-900">{{ selectedNode.fileExtension.toUpperCase() }}</p>
+                      </div>
+                    </template>
+
+                    <template v-if="selectedNode.mimeType">
+                      <div>
+                        <p class="text-xs text-gray-500 mb-1.5">MIME 类型</p>
+                        <p class="text-sm text-gray-900 font-mono">{{ selectedNode.mimeType }}</p>
+                      </div>
+                    </template>
+
+                    <div>
+                      <p class="text-xs text-gray-500 mb-1.5">存储状态</p>
+                      <div class="flex items-center gap-2">
+                        <span
+                          v-if="selectedNode.fileDataId"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-green-50 text-green-700 rounded-full"
+                        >
+                          <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                          文件内容已存储
+                        </span>
+                        <span
+                          v-else
+                          class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-amber-50 text-amber-700 rounded-full"
+                        >
+                          <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                          仅元数据
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      v-if="selectedNode.fileDataId && selectedNode.mimeType && canPreview(selectedNode.mimeType).previewable"
+                      class="pt-2"
+                    >
+                      <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs text-gray-500 flex items-center gap-1">
+                          <Eye class="w-3 h-3" />
+                          预览
+                        </p>
+                        <button
+                          class="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                          @click="handleOpenFileNewTab(selectedNode)"
+                        >
+                          <Maximize2 class="w-3 h-3" />
+                          新窗口打开
+                        </button>
+                      </div>
+                      <div
+                        class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden min-h-[200px] flex items-center justify-center">
+                        <img
+                          v-if="canPreview(selectedNode.mimeType).type === 'image'"
+                          :src="getFile(selectedNode.fileDataId!)?.data"
+                          :alt="selectedNode.name"
+                          class="max-w-full max-h-[300px] object-contain"
+                          @click="handlePreviewFile(selectedNode)"
+                        />
+                        <div
+                          v-else-if="canPreview(selectedNode.mimeType).type === 'pdf'"
+                          class="w-full h-[300px]"
+                        >
+                          <iframe
+                            :src="getFile(selectedNode.fileDataId!)?.data"
+                            class="w-full h-full"
+                          ></iframe>
+                        </div>
+                        <div
+                          v-else-if="canPreview(selectedNode.mimeType).type === 'text'"
+                          class="w-full p-3 text-xs text-gray-600 font-mono max-h-[300px] overflow-auto whitespace-pre-wrap"
+                        >
+                          {{ (() => {
+                            const f = getFile(selectedNode.fileDataId!);
+                            if (!f?.data) return '';
+                            return decodeBase64Text(f.data);
+                          })() }}
+                        </div>
+                        <div
+                          v-else
+                          class="text-center py-8"
+                        >
+                          <component
+                            :is="getNodeFileIcon(selectedNode)"
+                            :class="['w-12 h-12 mx-auto mb-2', getNodeFileIconColor(selectedNode)]"
+                          />
+                          <p class="text-sm text-gray-500">点击上方预览按钮查看</p>
+                        </div>
+                      </div>
                     </div>
                   </template>
 
@@ -2016,6 +2254,85 @@ const formatDate = (dateStr: string): string => {
               >
                 <FileSignature class="w-4 h-4" />
                 生成文书
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="showFilePreview && previewFileData"
+        class="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+        @click.self="closeFilePreview"
+      >
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center gap-3 min-w-0">
+              <component
+                :is="getNodeFileIcon(selectedNode!)"
+                :class="['w-6 h-6', getNodeFileIconColor(selectedNode!)]"
+              />
+              <h3 class="text-lg font-semibold text-gray-900 truncate">
+                {{ previewFileData.name }}
+              </h3>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button
+                class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="下载"
+                @click="handleDownloadFile(selectedNode!)"
+              >
+                <Download class="w-5 h-5" />
+              </button>
+              <button
+                class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="新窗口打开"
+                @click="handleOpenFileNewTab(selectedNode!)"
+              >
+                <Maximize2 class="w-5 h-5" />
+              </button>
+              <button
+                class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="关闭"
+                @click="closeFilePreview"
+              >
+                <X class="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-6">
+            <img
+              v-if="previewFileData.type === 'image'"
+              :src="previewFileData.dataUrl"
+              :alt="previewFileData.name"
+              class="max-w-full max-h-[75vh] object-contain rounded-lg shadow-lg"
+            />
+            <iframe
+              v-else-if="previewFileData.type === 'pdf'"
+              :src="previewFileData.dataUrl"
+              class="w-full h-[75vh] bg-white rounded-lg shadow-lg"
+            ></iframe>
+            <pre
+              v-else-if="previewFileData.type === 'text'"
+              class="w-full h-[75vh] bg-white rounded-lg shadow-lg p-6 text-sm text-gray-800 font-mono overflow-auto whitespace-pre-wrap"
+            >{{ previewTextContent }}</pre>
+            <div
+              v-else
+              class="text-center py-16"
+            >
+              <component
+                :is="getNodeFileIcon(selectedNode!)"
+                :class="['w-16 h-16 mx-auto mb-4', getNodeFileIconColor(selectedNode!)]"
+              />
+              <p class="text-gray-500">该文件类型暂不支持预览</p>
+              <button
+                class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                @click="handleDownloadFile(selectedNode!)"
+              >
+                下载文件
               </button>
             </div>
           </div>

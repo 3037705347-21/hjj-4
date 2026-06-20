@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import {
   FolderPlus,
   FilePlus,
@@ -19,6 +19,9 @@ import {
   Folder,
   FileSpreadsheet,
   FileText,
+  Upload,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-vue-next'
 import MaterialTreeItem from './MaterialTreeItem.vue'
 import type { MaterialNode } from '@/types'
@@ -42,6 +45,12 @@ import {
   findParentNode,
 } from '@/utils/treeUtils'
 import type { FilterOptions } from '@/utils/treeUtils'
+import {
+  saveFile,
+  deleteFile,
+  formatFileSize,
+  getFileExtension,
+} from '@/utils/fileStorage'
 
 interface Props {
   materials: MaterialNode[]
@@ -72,6 +81,9 @@ const showRemarkDialog = ref(false)
 const batchRemark = ref('')
 
 const showExportMenu = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const pendingParentId = ref<string | null>(null)
+const isDragover = ref(false)
 
 const filterOptions = ref<FilterOptions>({
   nameKeyword: '',
@@ -201,17 +213,10 @@ const addRootFolder = () => {
 }
 
 const addRootFile = () => {
-  const newFile: MaterialNode = {
-    id: generateId(),
-    name: '新建文件',
-    type: MaterialNodeType.FILE,
-    uploadDate: new Date().toISOString().split('T')[0],
-    uploader: '当前用户',
-    fileSize: '0 KB',
-    description: '',
-  }
-  localMaterials.value = [...localMaterials.value, newFile]
-  emit('update:materials', localMaterials.value)
+  pendingParentId.value = null
+  nextTick(() => {
+    fileInputRef.value?.click()
+  })
 }
 
 const getAllVisibleNodeIds = (): string[] => {
@@ -299,31 +304,27 @@ const toggleExpand = (nodeId: string) => {
 }
 
 const handleAdd = (parentId: string | null, type: MaterialNodeType) => {
-  const newNode: MaterialNode = type === MaterialNodeType.FOLDER
-    ? {
-        id: generateId(),
-        name: '新建文件夹',
-        type: MaterialNodeType.FOLDER,
-        children: [],
-        expanded: true,
-      }
-    : {
-        id: generateId(),
-        name: '新建文件',
-        type: MaterialNodeType.FILE,
-        uploadDate: new Date().toISOString().split('T')[0],
-        uploader: '当前用户',
-        fileSize: '0 KB',
-        description: '',
-      }
-
-  localMaterials.value = addChildNode(localMaterials.value, parentId, newNode)
-  emit('update:materials', localMaterials.value)
-  if (multiSelectMode.value) {
-    selectedNodeIds.value = new Set([newNode.id])
+  if (type === MaterialNodeType.FOLDER) {
+    const newNode: MaterialNode = {
+      id: generateId(),
+      name: '新建文件夹',
+      type: MaterialNodeType.FOLDER,
+      children: [],
+      expanded: true,
+    }
+    localMaterials.value = addChildNode(localMaterials.value, parentId, newNode)
+    emit('update:materials', localMaterials.value)
+    if (multiSelectMode.value) {
+      selectedNodeIds.value = new Set([newNode.id])
+    } else {
+      selectedNodeId.value = newNode.id
+      emit('select', newNode)
+    }
   } else {
-    selectedNodeId.value = newNode.id
-    emit('select', newNode)
+    pendingParentId.value = parentId
+    nextTick(() => {
+      fileInputRef.value?.click()
+    })
   }
 }
 
@@ -355,8 +356,27 @@ const handleRename = (node: MaterialNode) => {
   emit('update:materials', localMaterials.value)
 }
 
+const getFileNodeIds = (nodes: MaterialNode[]): string[] => {
+  const ids: string[] = []
+  const traverse = (nodeList: MaterialNode[]) => {
+    for (const node of nodeList) {
+      if (node.type === MaterialNodeType.FILE && node.fileDataId) {
+        ids.push(node.fileDataId)
+      }
+      if (node.children) {
+        traverse(node.children)
+      }
+    }
+  }
+  traverse(nodes)
+  return ids
+}
+
 const handleDelete = (node: MaterialNode) => {
   if (confirm(`确定要删除「${node.name}」吗？${node.type === MaterialNodeType.FOLDER ? '文件夹内的所有内容也将被删除。' : ''}`)) {
+    const fileDataIds = getFileNodeIds([node])
+    fileDataIds.forEach(id => deleteFile(id))
+
     localMaterials.value = removeNodeById(localMaterials.value, node.id)
     if (selectedNodeId.value === node.id) {
       selectedNodeId.value = null
@@ -389,6 +409,10 @@ const handleBatchDelete = () => {
   if (!confirm(confirmText)) return
 
   const idsToDelete = Array.from(selectedNodeIds.value)
+  const nodesToDelete = getNodesByIds(localMaterials.value, idsToDelete)
+  const fileDataIds = getFileNodeIds(nodesToDelete)
+  fileDataIds.forEach(id => deleteFile(id))
+
   localMaterials.value = removeNodesByIds(localMaterials.value, idsToDelete)
 
   idsToDelete.forEach(id => {
@@ -401,6 +425,127 @@ const handleBatchDelete = () => {
   selectedNodeIds.value = new Set()
   lastSelectedId.value = null
   emit('update:materials', localMaterials.value)
+}
+
+const processFileUpload = async (file: File, parentId: string | null): Promise<MaterialNode> => {
+  const extension = getFileExtension(file.name)
+  const tempNodeId = generateId()
+
+  const tempNode: MaterialNode = {
+    id: tempNodeId,
+    name: file.name,
+    type: MaterialNodeType.FILE,
+    uploadDate: new Date().toISOString().split('T')[0],
+    uploader: '当前用户',
+    fileSize: formatFileSize(file.size),
+    description: '',
+    fileExtension: extension,
+    mimeType: file.type,
+    isUploading: true,
+    uploadProgress: 0,
+  }
+
+  localMaterials.value = addChildNode(localMaterials.value, parentId, tempNode)
+  emit('update:materials', localMaterials.value)
+
+  try {
+    localMaterials.value = updateNodeById(localMaterials.value, tempNodeId, { uploadProgress: 30 })
+    emit('update:materials', localMaterials.value)
+
+    const storageItem = await saveFile(file)
+
+    localMaterials.value = updateNodeById(localMaterials.value, tempNodeId, { uploadProgress: 70 })
+    emit('update:materials', localMaterials.value)
+
+    const finalNode: MaterialNode = {
+      ...tempNode,
+      fileDataId: storageItem.fileDataId,
+      isUploading: false,
+      uploadProgress: undefined,
+      fileSize: formatFileSize(storageItem.fileSize),
+    }
+
+    localMaterials.value = updateNodeById(localMaterials.value, tempNodeId, {
+      fileDataId: storageItem.fileDataId,
+      isUploading: false,
+      uploadProgress: undefined,
+    })
+
+    emit('update:materials', localMaterials.value)
+
+    if (storageItem.isPlaceholder) {
+      console.warn(`File "${file.name}" exceeds size limit, stored as placeholder`)
+    }
+
+    return finalNode
+  } catch (error) {
+    console.error('File upload failed:', error)
+    localMaterials.value = updateNodeById(localMaterials.value, tempNodeId, {
+      isUploading: false,
+      uploadProgress: undefined,
+      uploadError: error instanceof Error ? error.message : '上传失败',
+    })
+    emit('update:materials', localMaterials.value)
+    throw error
+  }
+}
+
+const handleFileSelect = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) return
+
+  const parentId = pendingParentId.value
+  pendingParentId.value = null
+
+  const fileArray = Array.from(files)
+
+  for (const file of fileArray) {
+    try {
+      await processFileUpload(file, parentId)
+    } catch (e) {
+      console.error('Failed to upload file:', file.name, e)
+    }
+  }
+
+  input.value = ''
+}
+
+const handleTreeDragOver = (e: DragEvent) => {
+  e.preventDefault()
+  if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+    isDragover.value = true
+  }
+}
+
+const handleTreeDragLeave = () => {
+  isDragover.value = false
+}
+
+const handleTreeDrop = async (e: DragEvent) => {
+  e.preventDefault()
+  isDragover.value = false
+
+  if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return
+
+  const files = Array.from(e.dataTransfer.files)
+  for (const file of files) {
+    try {
+      await processFileUpload(file, null)
+    } catch (e) {
+      console.error('Failed to upload file:', file.name, e)
+    }
+  }
+}
+
+const handleUploadFiles = async (parentId: string, files: File[]) => {
+  for (const file of files) {
+    try {
+      await processFileUpload(file, parentId)
+    } catch (e) {
+      console.error('Failed to upload file to folder:', file.name, e)
+    }
+  }
 }
 
 const handleBatchMove = () => {
@@ -783,7 +928,22 @@ defineExpose({
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-3">
+    <div
+      class="flex-1 overflow-y-auto p-3 relative"
+      @dragover="handleTreeDragOver"
+      @dragleave="handleTreeDragLeave"
+      @drop="handleTreeDrop"
+    >
+      <div
+        v-if="isDragover"
+        class="absolute inset-0 z-10 flex items-center justify-center bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-lg pointer-events-none"
+      >
+        <div class="text-center">
+          <Upload class="w-12 h-12 text-blue-400 mx-auto mb-2" />
+          <p class="text-sm font-medium text-blue-600">释放文件以上传</p>
+          <p class="text-xs text-blue-500 mt-1">文件将上传到根目录</p>
+        </div>
+      </div>
       <MaterialTreeItem
         :nodes="filteredMaterials"
         :selected-node-id="selectedNodeId"
@@ -799,8 +959,17 @@ defineExpose({
         @drag-start="handleDragStart"
         @drag-over="handleDragOver"
         @drop="handleDrop"
+        @upload-files="handleUploadFiles"
       />
     </div>
+
+    <input
+      ref="fileInputRef"
+      type="file"
+      multiple
+      class="hidden"
+      @change="handleFileSelect"
+    />
 
     <Teleport to="body">
       <div

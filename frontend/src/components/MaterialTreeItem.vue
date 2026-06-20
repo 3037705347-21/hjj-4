@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 defineOptions({
   name: 'MaterialTreeItem',
@@ -13,9 +13,33 @@ import {
   Plus,
   Pencil,
   Trash2,
+  FileImage,
+  FileSpreadsheet,
+  File,
+  FileArchive,
+  Music,
+  Video,
+  FileType,
+  Loader2,
+  AlertTriangle,
+  Upload,
 } from 'lucide-vue-next'
 import type { MaterialNode } from '@/types'
 import { MaterialNodeType } from '@/types'
+import { getFileIconType } from '@/utils/fileStorage'
+
+const emit = defineEmits<{
+  (e: 'select', node: MaterialNode, ctrlKey?: boolean, shiftKey?: boolean): void
+  (e: 'toggleSelect', nodeId: string): void
+  (e: 'toggleExpand', nodeId: string): void
+  (e: 'add', parentId: string | null, type: MaterialNodeType): void
+  (e: 'rename', node: MaterialNode): void
+  (e: 'delete', node: MaterialNode): void
+  (e: 'dragStart', nodeId: string): void
+  (e: 'dragOver', nodeId: string, position: 'inside' | 'before' | 'after'): void
+  (e: 'drop', targetId: string | null, position: 'inside' | 'before' | 'after'): void
+  (e: 'uploadFiles', parentId: string | null, files: File[]): void
+}>()
 
 interface Props {
   nodes: MaterialNode[]
@@ -33,22 +57,70 @@ const props = withDefaults(defineProps<Props>(), {
   selectedNodeIds: () => new Set<string>(),
 })
 
-const emit = defineEmits<{
-  (e: 'select', node: MaterialNode, ctrlKey?: boolean, shiftKey?: boolean): void
-  (e: 'toggleSelect', nodeId: string): void
-  (e: 'toggleExpand', nodeId: string): void
-  (e: 'add', parentId: string | null, type: MaterialNodeType): void
-  (e: 'rename', node: MaterialNode): void
-  (e: 'delete', node: MaterialNode): void
-  (e: 'dragStart', nodeId: string): void
-  (e: 'dragOver', nodeId: string, position: 'inside' | 'before' | 'after'): void
-  (e: 'drop', targetId: string | null, position: 'inside' | 'before' | 'after'): void
-}>()
-
 const dragOverState = ref<{ nodeId: string | null; position: 'inside' | 'before' | 'after' | null }>({
   nodeId: null,
   position: null,
 })
+
+const isFileDragover = ref(false)
+
+const getFileIcon = (node: MaterialNode) => {
+  if (node.type !== MaterialNodeType.FILE) return null
+  const iconType = getFileIconType(node.mimeType || '', node.fileExtension || '')
+  switch (iconType) {
+    case 'pdf': return FileType
+    case 'excel': return FileSpreadsheet
+    case 'word': return FileText
+    case 'image': return FileImage
+    case 'zip': return FileArchive
+    case 'audio': return Music
+    case 'video': return Video
+    case 'text': return FileText
+    default: return File
+  }
+}
+
+const getFileIconColor = (node: MaterialNode) => {
+  if (node.type !== MaterialNodeType.FILE) return 'text-blue-500'
+  const iconType = getFileIconType(node.mimeType || '', node.fileExtension || '')
+  switch (iconType) {
+    case 'pdf': return 'text-red-500'
+    case 'excel': return 'text-green-600'
+    case 'word': return 'text-blue-600'
+    case 'image': return 'text-purple-500'
+    case 'zip': return 'text-amber-600'
+    case 'audio': return 'text-pink-500'
+    case 'video': return 'text-orange-500'
+    case 'text': return 'text-gray-500'
+    default: return 'text-blue-500'
+  }
+}
+
+const handleFileDrop = async (e: DragEvent, node: MaterialNode) => {
+  e.preventDefault()
+  e.stopPropagation()
+  isFileDragover.value = false
+  dragOverState.value = { nodeId: null, position: null }
+
+  if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return
+  if (node.type !== MaterialNodeType.FOLDER) return
+
+  const files = Array.from(e.dataTransfer.files)
+  emit('uploadFiles', node.id, files)
+}
+
+const handleFileDragOver = (e: DragEvent, node: MaterialNode) => {
+  if (node.type !== MaterialNodeType.FOLDER) return
+  if (!e.dataTransfer?.types.includes('Files')) return
+
+  e.preventDefault()
+  isFileDragover.value = true
+  e.dataTransfer.dropEffect = 'copy'
+}
+
+const handleFileDragLeave = () => {
+  isFileDragover.value = false
+}
 
 const handleToggle = (e: Event, node: MaterialNode) => {
   e.stopPropagation()
@@ -163,7 +235,7 @@ const getDropClass = (node: MaterialNode) => {
       :key="node.id"
     >
       <div
-        class="group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all border-2 border-transparent"
+        class="group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all border-2 border-transparent relative"
         :class="[
           isSelected(node.id)
             ? 'bg-blue-50 text-blue-700'
@@ -171,17 +243,63 @@ const getDropClass = (node: MaterialNode) => {
             ? 'bg-yellow-50 text-yellow-800'
             : 'hover:bg-gray-50',
           getDropClass(node),
+          node.isUploading ? 'opacity-70' : '',
+          node.type === MaterialNodeType.FOLDER && isFileDragover && dragOverState.nodeId === node.id ? 'ring-2 ring-green-500' : '',
         ]"
         :style="{ paddingLeft: `${level * 20 + 8}px` }"
-        @click="(e) => handleSelect(e, node)"
-        draggable="true"
-        @dragstart="(e) => handleDragStart(e, node)"
-        @dragover="(e) => handleDragOver(e, node)"
-        @dragleave="handleDragLeave"
-        @drop="(e) => handleDrop(e, node)"
+        @click="(e) => { if (!node.isUploading) handleSelect(e, node) }"
+        :draggable="!node.isUploading"
+        @dragstart="(e) => { if (!e.dataTransfer?.types.includes('Files')) handleDragStart(e, node) }"
+        @dragover="(e) => {
+          if (e.dataTransfer?.types.includes('Files')) {
+            handleFileDragOver(e, node)
+          } else {
+            handleDragOver(e, node)
+          }
+        }"
+        @dragleave="(e) => {
+          if (e.dataTransfer?.types.includes('Files')) {
+            handleFileDragLeave()
+          } else {
+            handleDragLeave()
+          }
+        }"
+        @drop="(e) => {
+          if (e.dataTransfer?.types.includes('Files')) {
+            handleFileDrop(e, node)
+          } else {
+            handleDrop(e, node)
+          }
+        }"
       >
+        <div
+          v-if="node.isUploading"
+          class="absolute inset-0 bg-white/50 flex items-center px-2 z-10 rounded-md"
+        >
+          <Loader2 class="w-4 h-4 text-blue-500 animate-spin flex-shrink-0 mr-2" />
+          <span class="text-xs text-blue-600 truncate flex-1">
+            上传中{{ node.uploadProgress ? ` ${node.uploadProgress}%` : '' }}
+          </span>
+        </div>
+
+        <div
+          v-if="node.uploadError"
+          class="absolute inset-0 bg-red-50/80 flex items-center px-2 z-10 rounded-md"
+          :title="node.uploadError"
+        >
+          <AlertTriangle class="w-4 h-4 text-red-500 flex-shrink-0 mr-2" />
+          <span class="text-xs text-red-600 truncate flex-1">上传失败</span>
+          <button
+            class="p-0.5 hover:bg-red-100 rounded text-red-500 flex-shrink-0"
+            @click.stop="$emit('delete', node)"
+            title="删除"
+          >
+            <Trash2 class="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         <button
-          v-if="multiSelectMode"
+          v-if="multiSelectMode && !node.isUploading && !node.uploadError"
           class="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 transition-colors flex-shrink-0"
           @click="(e) => handleCheckboxClick(e, node.id)"
         >
@@ -204,7 +322,7 @@ const getDropClass = (node: MaterialNode) => {
           </div>
         </button>
         <button
-          v-if="node.type === MaterialNodeType.FOLDER"
+          v-if="node.type === MaterialNodeType.FOLDER && !node.isUploading && !node.uploadError"
           class="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 transition-colors flex-shrink-0"
           @click="(e) => handleToggle(e, node)"
         >
@@ -217,19 +335,21 @@ const getDropClass = (node: MaterialNode) => {
             class="w-4 h-4 text-gray-500"
           />
         </button>
+        <span v-else-if="!node.isUploading && !node.uploadError" class="w-5 flex-shrink-0"></span>
         <span v-else class="w-5 flex-shrink-0"></span>
 
         <FolderOpen
-          v-if="node.type === MaterialNodeType.FOLDER && node.expanded"
+          v-if="node.type === MaterialNodeType.FOLDER && node.expanded && !node.isUploading && !node.uploadError"
           class="w-5 h-5 text-yellow-500 flex-shrink-0"
         />
         <Folder
-          v-else-if="node.type === MaterialNodeType.FOLDER"
+          v-else-if="node.type === MaterialNodeType.FOLDER && !node.isUploading && !node.uploadError"
           class="w-5 h-5 text-yellow-500 flex-shrink-0"
         />
-        <FileText
-          v-else
-          class="w-5 h-5 text-blue-500 flex-shrink-0"
+        <component
+          v-else-if="!node.isUploading && !node.uploadError"
+          :is="getFileIcon(node)"
+          :class="['w-5 h-5 flex-shrink-0', getFileIconColor(node)]"
         />
 
         <span class="flex-1 truncate text-sm font-medium">
@@ -237,10 +357,25 @@ const getDropClass = (node: MaterialNode) => {
         </span>
 
         <span
-          v-if="node.type === MaterialNodeType.FILE"
+          v-if="node.type === MaterialNodeType.FILE && !node.isUploading && !node.uploadError"
           class="text-xs text-gray-400 flex-shrink-0 hidden sm:inline"
         >
           {{ node.fileSize }}
+        </span>
+
+        <span
+          v-if="node.type === MaterialNodeType.FILE && node.fileDataId && !node.isUploading && !node.uploadError"
+          class="text-xs text-green-500 flex-shrink-0 hidden sm:inline"
+          title="文件已存储"
+        >
+          ●
+        </span>
+        <span
+          v-else-if="node.type === MaterialNodeType.FILE && !node.fileDataId && !node.isUploading && !node.uploadError"
+          class="text-xs text-amber-500 flex-shrink-0 hidden sm:inline"
+          title="仅存储元数据"
+        >
+          ○
         </span>
 
         <div class="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
