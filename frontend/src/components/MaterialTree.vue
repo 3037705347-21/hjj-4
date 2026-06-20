@@ -687,6 +687,30 @@ const setSelectedNodeId = (nodeId: string) => {
   selectedNodeId.value = nodeId
 }
 
+const scrollToNodeId = (nodeId: string): boolean => {
+  const el = document.querySelector(`[data-node-id="${nodeId}"]`) as HTMLElement | null
+  if (el && el.scrollIntoView) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    return true
+  }
+  return false
+}
+
+const flashHighlightNodeId = (nodeId: string): boolean => {
+  const el = document.querySelector(`[data-node-id="${nodeId}"]`) as HTMLElement | null
+  if (!el) return false
+
+  el.classList.add('bg-yellow-200', 'text-yellow-900', 'border-yellow-400', 'animate-pulse')
+  el.classList.remove('border-transparent')
+
+  window.setTimeout(() => {
+    el.classList.remove('bg-yellow-200', 'text-yellow-900', 'border-yellow-400', 'animate-pulse')
+    el.classList.add('border-transparent')
+  }, 2000)
+
+  return true
+}
+
 defineExpose({
   getMaterials: () => localMaterials.value,
   getFilteredMaterials: () => filteredMaterials.value,
@@ -696,6 +720,8 @@ defineExpose({
   setSelectedNodeId,
   getSelectedIds: () => Array.from(selectedNodeIds.value),
   getSelectedNodes: () => selectedNodes.value,
+  scrollToNodeId,
+  flashHighlightNodeId,
 })
 </script>
 

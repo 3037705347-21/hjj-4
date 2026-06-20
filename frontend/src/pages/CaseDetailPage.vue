@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -59,7 +59,7 @@ import { computeEventSummary, refreshOverdueEvents } from '@/mock/caseEvents'
 import { getArchiveByCaseId, createArchive, generateArchiveCode } from '@/mock/archives'
 import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord, TaskSummary, CaseEventSummary as EventSummaryType } from '@/types'
 import { CaseStatus, MaterialNodeType as NodeType, ArchiveStatus, archiveStatusMap } from '@/types'
-import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById } from '@/utils/treeUtils'
+import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById, expandPathToNode } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
 import {
   checkMaterialCompleteness,
@@ -189,10 +189,57 @@ onMounted(() => {
   refreshOverdueTasks()
   refreshOverdueEvents()
   window.addEventListener('keydown', handleKeydown)
+
+  const highlightNodeId = route.query.highlight as string | undefined
+  if (highlightNodeId && found) {
+    currentMaterials.value = expandPathToNode(currentMaterials.value, highlightNodeId)
+    handleMaterialsUpdate(currentMaterials.value)
+    nextTick(() => {
+      const node = findNodeById(currentMaterials.value, highlightNodeId)
+      if (node) {
+        selectedNode.value = node
+        if (treeRef.value) {
+          treeRef.value.setSelectedNodeId(highlightNodeId)
+        }
+      }
+    })
+    nextTick(() => {
+      setTimeout(() => {
+        if (treeRef.value) {
+          treeRef.value.scrollToNodeId(highlightNodeId)
+          treeRef.value.flashHighlightNodeId(highlightNodeId)
+        }
+      }, 200)
+    })
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+})
+
+watch(() => route.query.highlight, (newHighlight) => {
+  if (newHighlight && typeof newHighlight === 'string' && currentMaterials.value.length > 0) {
+    currentMaterials.value = expandPathToNode(currentMaterials.value, newHighlight)
+    handleMaterialsUpdate(currentMaterials.value)
+    nextTick(() => {
+      const node = findNodeById(currentMaterials.value, newHighlight)
+      if (node) {
+        selectedNode.value = node
+        if (treeRef.value) {
+          treeRef.value.setSelectedNodeId(newHighlight)
+        }
+      }
+    })
+    nextTick(() => {
+      setTimeout(() => {
+        if (treeRef.value) {
+          treeRef.value.scrollToNodeId(newHighlight)
+          treeRef.value.flashHighlightNodeId(newHighlight)
+        }
+      }, 200)
+    })
+  }
 })
 
 const goBack = () => {

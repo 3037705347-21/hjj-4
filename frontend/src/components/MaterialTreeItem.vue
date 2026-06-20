@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 
 defineOptions({
   name: 'MaterialTreeItem',
@@ -27,6 +27,43 @@ import {
 import type { MaterialNode } from '@/types'
 import { MaterialNodeType } from '@/types'
 import { getFileIconType } from '@/utils/fileStorage'
+
+const nodeRefs = ref<Map<string, HTMLElement>>(new Map())
+
+const flashingNodeId = ref<string | null>(null)
+const flashingTimers = ref<Map<string, number>>(new Map())
+
+const setNodeRef = (el: HTMLElement | null, nodeId: string) => {
+  if (el) {
+    nodeRefs.value.set(nodeId, el)
+  } else {
+    nodeRefs.value.delete(nodeId)
+  }
+}
+
+const getNodeEl = (nodeId: string): HTMLElement | null => {
+  return nodeRefs.value.get(nodeId) || null
+}
+
+const triggerFlash = (nodeId: string) => {
+  const existingTimer = flashingTimers.value.get(nodeId)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+  }
+  flashingNodeId.value = nodeId
+  const timer = window.setTimeout(() => {
+    flashingNodeId.value = null
+    flashingTimers.value.delete(nodeId)
+  }, 2000)
+  flashingTimers.value.set(nodeId, timer)
+}
+
+const isFlashing = (nodeId: string) => flashingNodeId.value === nodeId
+
+defineExpose({
+  getNodeEl,
+  triggerFlash,
+})
 
 const emit = defineEmits<{
   (e: 'select', node: MaterialNode, ctrlKey?: boolean, shiftKey?: boolean): void
@@ -235,10 +272,14 @@ const getDropClass = (node: MaterialNode) => {
       :key="node.id"
     >
       <div
+        :ref="(el) => setNodeRef(el as HTMLElement | null, node.id)"
+        :data-node-id="node.id"
         class="group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all border-2 border-transparent relative"
         :class="[
-          isSelected(node.id)
-            ? 'bg-blue-50 text-blue-700'
+          isFlashing(node.id)
+            ? 'bg-yellow-200 text-yellow-900 border-yellow-400 animate-pulse'
+            : isSelected(node.id)
+            ? 'bg-blue-50 text-blue-700 border-blue-200'
             : isMatched(node.id)
             ? 'bg-yellow-50 text-yellow-800'
             : 'hover:bg-gray-50',

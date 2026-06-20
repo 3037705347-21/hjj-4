@@ -16,9 +16,12 @@ import {
   BookTemplate,
   FileCheck,
   BarChart3,
+  Search,
 } from 'lucide-vue-next'
+import { useGlobalSearch } from '@/composables/useGlobalSearch'
 
 const router = useRouter()
+const { openSearch } = useGlobalSearch()
 
 const goToCases = () => {
   router.push({ name: 'case-list' })
@@ -150,6 +153,14 @@ const colorMap: Record<string, string> = {
           </div>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
+          <button
+            class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+            @click="openSearch"
+          >
+            <Search class="w-4 h-4" />
+            全局检索
+            <kbd class="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] text-gray-400 font-mono">Ctrl+K</kbd>
+          </button>
           <button
             class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
             @click="goToTasks"

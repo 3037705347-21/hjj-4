@@ -27,9 +27,11 @@ import { CaseStatus } from '@/types'
 import type { Case, CaseStatus as CaseStatusType } from '@/types'
 import CaseFormModal from '@/components/CaseFormModal.vue'
 import { getMissingCount } from '@/utils/caseWorkflow'
+import { useGlobalSearch } from '@/composables/useGlobalSearch'
 
 const router = useRouter()
 const store = useCasesStore()
+const { openSearch } = useGlobalSearch()
 
 const goToTasks = () => {
   router.push({ name: 'task-list' })
@@ -214,6 +216,14 @@ const cancelDelete = () => {
             >
               <RefreshCw class="w-5 h-5 text-amber-600" />
               恢复演示数据
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="openSearch"
+            >
+              <Search class="w-5 h-5 text-blue-600" />
+              全局检索
+              <kbd class="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] text-gray-400 font-mono">Ctrl+K</kbd>
             </button>
             <button
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"

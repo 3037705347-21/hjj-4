@@ -487,3 +487,47 @@ export const getNodePath = (
   }
   return ''
 }
+
+export const getAncestorIds = (nodes: MaterialNode[], targetId: string): Set<string> => {
+  const result = new Set<string>()
+
+  const find = (nodeList: MaterialNode[], path: string[]): boolean => {
+    for (const node of nodeList) {
+      if (node.id === targetId) {
+        path.forEach(id => result.add(id))
+        return true
+      }
+      if (node.children) {
+        if (find(node.children, [...path, node.id])) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  find(nodes, [])
+  return result
+}
+
+export const expandPathToNode = (nodes: MaterialNode[], targetId: string): MaterialNode[] => {
+  const ancestorIds = getAncestorIds(nodes, targetId)
+
+  const expand = (nodeList: MaterialNode[]): MaterialNode[] => {
+    return nodeList.map(node => {
+      if (ancestorIds.has(node.id) && node.type === MaterialNodeType.FOLDER) {
+        return {
+          ...node,
+          expanded: true,
+          children: node.children ? expand(node.children) : undefined,
+        }
+      }
+      if (node.children) {
+        return { ...node, children: expand(node.children) }
+      }
+      return node
+    })
+  }
+
+  return expand(nodes)
+}
