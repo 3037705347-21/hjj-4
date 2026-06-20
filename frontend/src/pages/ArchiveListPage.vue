@@ -17,6 +17,7 @@ import {
   CheckCircle,
   X,
   AlertCircle,
+  Shield,
 } from 'lucide-vue-next'
 import {
   getArchiveList,
@@ -28,8 +29,10 @@ import {
 import { caseStatusMap } from '@/mock/data'
 import { archiveStatusMap, ArchiveStatus, CaseStatus } from '@/types'
 import type { CaseArchiveListItem, Case } from '@/types'
+import { usePermissions } from '@/composables/usePermissions'
 
 const router = useRouter()
+const permissions = usePermissions()
 
 const goToCaseList = () => {
   router.push({ name: 'case-list' })
@@ -205,11 +208,20 @@ const getSelectedCaseName = computed(() => {
               <ArrowLeft class="w-5 h-5" />
             </button>
             <div>
-              <h1 class="text-2xl font-bold text-gray-900">卷宗归档与借阅</h1>
-              <p class="mt-1 text-sm text-gray-500">管理结案案件的电子归档和纸质卷宗流转</p>
+              <div class="flex items-center gap-2 mb-1">
+                <h1 class="text-2xl font-bold text-gray-900">卷宗归档与借阅</h1>
+                <div class="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-50 border border-blue-200 rounded-full">
+                  <Shield class="w-3.5 h-3.5 text-blue-600" />
+                  <span class="text-xs font-medium text-blue-700">
+                    {{ permissions.currentRoleInfo?.label }}
+                  </span>
+                </div>
+              </div>
+              <p class="text-sm text-gray-500">管理结案案件的电子归档和纸质卷宗流转</p>
             </div>
           </div>
           <button
+            v-if="permissions.canArchiveCase"
             class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             @click="openCreateModal"
             :disabled="availableCases.length === 0"
@@ -393,6 +405,7 @@ const getSelectedCaseName = computed(() => {
               </div>
               <div class="flex items-center gap-1 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
+                  v-if="permissions.canDeleteArchive"
                   class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="删除"
                   @click="confirmDelete(archive, $event)"

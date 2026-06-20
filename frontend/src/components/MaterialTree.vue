@@ -51,6 +51,9 @@ import {
   formatFileSize,
   getFileExtension,
 } from '@/utils/fileStorage'
+import { usePermissions } from '@/composables/usePermissions'
+
+const permissions = usePermissions()
 
 interface Props {
   materials: MaterialNode[]
@@ -728,7 +731,7 @@ defineExpose({
 <template>
   <div class="h-full flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm">
     <div
-      v-if="multiSelectMode && selectedNodeIds.size > 0"
+      v-if="multiSelectMode && selectedNodeIds.size > 0 && permissions.canBatchOperate"
       class="flex items-center justify-between px-4 py-2.5 bg-blue-50 border-b border-blue-100"
     >
       <div class="flex items-center gap-3">
@@ -760,6 +763,7 @@ defineExpose({
         </button>
         <div class="w-px h-5 bg-gray-200 mx-1"></div>
         <button
+          v-if="permissions.canDeleteMaterial"
           class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-md hover:bg-red-100 border border-red-200 transition-colors"
           @click="handleBatchDelete"
         >
@@ -767,6 +771,7 @@ defineExpose({
           批量删除
         </button>
         <button
+          v-if="permissions.canMoveMaterial"
           class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-50 text-amber-600 rounded-md hover:bg-amber-100 border border-amber-200 transition-colors"
           @click="handleBatchMove"
         >
@@ -774,13 +779,14 @@ defineExpose({
           批量移动
         </button>
         <button
+          v-if="permissions.canEditMaterial"
           class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-50 text-purple-600 rounded-md hover:bg-purple-100 border border-purple-200 transition-colors"
           @click="handleBatchRemark"
         >
           <MessageSquare class="w-3.5 h-3.5" />
           批量备注
         </button>
-        <div class="relative">
+        <div v-if="permissions.canExportExcel || permissions.canExportPdf" class="relative">
           <button
             class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-50 text-green-600 rounded-md hover:bg-green-100 border border-green-200 transition-colors"
             @click="showExportMenu = !showExportMenu"
@@ -793,6 +799,7 @@ defineExpose({
             class="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-30"
           >
             <button
+              v-if="permissions.canExportExcel"
               class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
               @click="handleBatchExport('excel')"
             >
@@ -800,6 +807,7 @@ defineExpose({
               导出 Excel
             </button>
             <button
+              v-if="permissions.canExportPdf"
               class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
               @click="handleBatchExport('pdf')"
             >
@@ -814,6 +822,7 @@ defineExpose({
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
       <div class="flex items-center gap-2">
         <button
+          v-if="permissions.canCreateFolder"
           class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
           @click="addRootFolder"
         >
@@ -821,6 +830,7 @@ defineExpose({
           新建文件夹
         </button>
         <button
+          v-if="permissions.canUploadMaterial"
           class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
           @click="addRootFile"
         >
@@ -830,6 +840,7 @@ defineExpose({
       </div>
       <div class="flex items-center gap-1">
         <button
+          v-if="permissions.canBatchOperate"
           class="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg transition-colors"
           :class="multiSelectMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'"
           :title="multiSelectMode ? '退出多选模式' : '进入多选模式'"

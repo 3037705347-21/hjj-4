@@ -43,6 +43,7 @@ import {
   Eye,
   Maximize2,
   Filter,
+  Shield,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
@@ -82,12 +83,14 @@ import {
   formatFileSize,
   deleteFile,
 } from '@/utils/fileStorage'
+import { usePermissions } from '@/composables/usePermissions'
 
 type DetailTab = 'case-info' | 'communication'
 
 const route = useRoute()
 const router = useRouter()
 const store = useCasesStore()
+const permissions = usePermissions()
 
 const currentCase = ref<Case | null>(null)
 const selectedNode = ref<MaterialNode | null>(null)
@@ -992,6 +995,7 @@ const closeFilePreview = () => {
             <div class="min-w-0">
               <div class="flex items-center gap-3 mb-1 flex-wrap">
                 <button
+                  v-if="permissions.canChangeCaseStatus"
                   class="px-2.5 py-0.5 text-xs font-medium rounded-full border flex-shrink-0 flex items-center gap-1.5 hover:ring-2 hover:ring-offset-1 hover:ring-blue-300 transition-all group"
                   :class="caseStatusMap[currentCase.status].class"
                   @click="openStatusChange"
@@ -1000,10 +1004,23 @@ const closeFilePreview = () => {
                   {{ caseStatusMap[currentCase.status].label }}
                   <RefreshCw class="w-3 h-3 opacity-60 group-hover:opacity-100" />
                 </button>
+                <span
+                  v-else
+                  class="px-2.5 py-0.5 text-xs font-medium rounded-full border flex-shrink-0 flex items-center gap-1.5"
+                  :class="caseStatusMap[currentCase.status].class"
+                >
+                  {{ caseStatusMap[currentCase.status].label }}
+                </span>
                 <span class="text-xs text-gray-400 font-mono truncate">{{ currentCase.caseNumber }}</span>
                 <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded flex-shrink-0">
                   {{ currentCase.caseType }}
                 </span>
+                <div class="flex items-center gap-2 px-2.5 py-0.5 bg-blue-50 border border-blue-200 rounded-full">
+                  <Shield class="w-3 h-3 text-blue-600" />
+                  <span class="text-xs font-medium text-blue-700">
+                    {{ permissions.currentRoleInfo?.label }}
+                  </span>
+                </div>
                 <span
                   v-if="hasTemplate && materialCompleteness.missingRequired > 0"
                   class="px-2 py-0.5 text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded flex items-center gap-1 flex-shrink-0"
@@ -1016,7 +1033,7 @@ const closeFilePreview = () => {
             </div>
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
-            <template v-if="isCaseClosed">
+            <template v-if="isCaseClosed && permissions.canArchiveCase">
               <template v-if="hasArchive">
                 <button
                   class="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-sm"
@@ -1036,7 +1053,7 @@ const closeFilePreview = () => {
                 </button>
               </template>
             </template>
-            <div class="relative">
+            <div v-if="permissions.canGenerateDocument" class="relative">
               <button
                 class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
                 @click="openDocumentDialog"
@@ -1045,7 +1062,7 @@ const closeFilePreview = () => {
                 生成文书
               </button>
             </div>
-            <div class="relative">
+            <div v-if="permissions.canExportExcel || permissions.canExportPdf" class="relative">
               <button
                 class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
                 @click="showExportMenu = !showExportMenu"
@@ -1058,6 +1075,7 @@ const closeFilePreview = () => {
                 class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20"
               >
                 <button
+                  v-if="permissions.canExportExcel"
                   class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
                   @click="handleExport('excel')"
                 >
@@ -1065,6 +1083,7 @@ const closeFilePreview = () => {
                   导出 Excel 文件
                 </button>
                 <button
+                  v-if="permissions.canExportPdf"
                   class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
                   @click="handleExport('pdf')"
                 >
@@ -1409,6 +1428,7 @@ const closeFilePreview = () => {
                     </button>
                   </template>
                   <button
+                    v-if="permissions.canEditMaterial"
                     class="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
                     title="编辑"
                     @click="startEdit"
@@ -1767,6 +1787,7 @@ const closeFilePreview = () => {
             客户沟通记录
           </h2>
           <button
+            v-if="permissions.canEditCase"
             class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             @click="openCreateCommunication"
           >

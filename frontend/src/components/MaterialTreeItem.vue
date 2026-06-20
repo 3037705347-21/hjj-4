@@ -27,6 +27,9 @@ import {
 import type { MaterialNode } from '@/types'
 import { MaterialNodeType } from '@/types'
 import { getFileIconType } from '@/utils/fileStorage'
+import { usePermissions } from '@/composables/usePermissions'
+
+const permissions = usePermissions()
 
 const nodeRefs = ref<Map<string, HTMLElement>>(new Map())
 
@@ -421,7 +424,7 @@ const getDropClass = (node: MaterialNode) => {
 
         <div class="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
           <button
-            v-if="node.type === MaterialNodeType.FOLDER"
+            v-if="node.type === MaterialNodeType.FOLDER && permissions.canCreateFolder"
             class="p-1 rounded hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
             title="新建文件夹"
             @click="(e) => handleAdd(e, node.id, MaterialNodeType.FOLDER)"
@@ -429,7 +432,7 @@ const getDropClass = (node: MaterialNode) => {
             <Plus class="w-3.5 h-3.5" />
           </button>
           <button
-            v-if="node.type === MaterialNodeType.FOLDER"
+            v-if="node.type === MaterialNodeType.FOLDER && permissions.canUploadMaterial"
             class="p-1 rounded hover:bg-green-100 text-gray-500 hover:text-green-600 transition-colors"
             title="新增文件"
             @click="(e) => handleAdd(e, node.id, MaterialNodeType.FILE)"
@@ -437,6 +440,7 @@ const getDropClass = (node: MaterialNode) => {
             <FileText class="w-3.5 h-3.5" />
           </button>
           <button
+            v-if="permissions.canRenameMaterial"
             class="p-1 rounded hover:bg-yellow-100 text-gray-500 hover:text-yellow-600 transition-colors"
             title="重命名"
             @click="(e) => handleRename(e, node)"
@@ -444,6 +448,7 @@ const getDropClass = (node: MaterialNode) => {
             <Pencil class="w-3.5 h-3.5" />
           </button>
           <button
+            v-if="permissions.canDeleteMaterial"
             class="p-1 rounded hover:bg-red-100 text-gray-500 hover:text-red-600 transition-colors"
             title="删除"
             @click="(e) => handleDelete(e, node)"

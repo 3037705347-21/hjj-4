@@ -18,6 +18,7 @@ import ReportOverviewPage from './pages/ReportOverviewPage.vue'
 import ReportCaseDistributionPage from './pages/ReportCaseDistributionPage.vue'
 import ReportMaterialStatsPage from './pages/ReportMaterialStatsPage.vue'
 import { useCasesStore } from './stores/cases'
+import { useUserStore } from './stores/user'
 import './style.css'
 
 const router = createRouter({
@@ -50,5 +51,8 @@ app.use(router)
 
 const casesStore = useCasesStore(pinia)
 casesStore.initialize()
+
+const userStore = useUserStore(pinia)
+userStore.initialize()
 
 app.mount('#app')

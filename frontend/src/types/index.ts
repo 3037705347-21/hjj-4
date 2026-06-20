@@ -1,3 +1,109 @@
+export enum UserRole {
+  VIEWER = 'viewer',
+  LAWYER = 'lawyer',
+  ADMIN = 'admin',
+}
+
+export const userRoleMap: Record<UserRole, { label: string; description: string; color: string }> = {
+  [UserRole.VIEWER]: {
+    label: '查看者',
+    description: '只读权限，可查看案件和材料，不能删除、重命名或编辑',
+    color: 'bg-gray-500',
+  },
+  [UserRole.LAWYER]: {
+    label: '承办律师',
+    description: '协作权限，可编辑材料、重命名节点，但不能删除案件',
+    color: 'bg-blue-500',
+  },
+  [UserRole.ADMIN]: {
+    label: '管理员',
+    description: '完整权限，可执行所有操作',
+    color: 'bg-purple-500',
+  },
+}
+
+export enum Permission {
+  CASE_CREATE = 'case:create',
+  CASE_EDIT = 'case:edit',
+  CASE_DELETE = 'case:delete',
+  CASE_STATUS_CHANGE = 'case:status_change',
+  CASE_ARCHIVE = 'case:archive',
+
+  MATERIAL_VIEW = 'material:view',
+  MATERIAL_CREATE = 'material:create',
+  MATERIAL_EDIT = 'material:edit',
+  MATERIAL_DELETE = 'material:delete',
+  MATERIAL_RENAME = 'material:rename',
+  MATERIAL_MOVE = 'material:move',
+  MATERIAL_UPLOAD = 'material:upload',
+  MATERIAL_BATCH_OPERATE = 'material:batch_operate',
+
+  EXPORT_EXCEL = 'export:excel',
+  EXPORT_PDF = 'export:pdf',
+
+  DOCUMENT_GENERATE = 'document:generate',
+
+  ARCHIVE_CREATE = 'archive:create',
+  ARCHIVE_DELETE = 'archive:delete',
+  ARCHIVE_BORROW = 'archive:borrow',
+
+  SYSTEM_RESET = 'system:reset',
+}
+
+export const rolePermissions: Record<UserRole, Permission[]> = {
+  [UserRole.VIEWER]: [
+    Permission.MATERIAL_VIEW,
+    Permission.EXPORT_EXCEL,
+    Permission.EXPORT_PDF,
+  ],
+  [UserRole.LAWYER]: [
+    Permission.CASE_CREATE,
+    Permission.CASE_EDIT,
+    Permission.CASE_STATUS_CHANGE,
+    Permission.CASE_ARCHIVE,
+    Permission.MATERIAL_VIEW,
+    Permission.MATERIAL_CREATE,
+    Permission.MATERIAL_EDIT,
+    Permission.MATERIAL_RENAME,
+    Permission.MATERIAL_MOVE,
+    Permission.MATERIAL_UPLOAD,
+    Permission.MATERIAL_BATCH_OPERATE,
+    Permission.EXPORT_EXCEL,
+    Permission.EXPORT_PDF,
+    Permission.DOCUMENT_GENERATE,
+    Permission.ARCHIVE_CREATE,
+    Permission.ARCHIVE_BORROW,
+  ],
+  [UserRole.ADMIN]: [
+    Permission.CASE_CREATE,
+    Permission.CASE_EDIT,
+    Permission.CASE_DELETE,
+    Permission.CASE_STATUS_CHANGE,
+    Permission.CASE_ARCHIVE,
+    Permission.MATERIAL_VIEW,
+    Permission.MATERIAL_CREATE,
+    Permission.MATERIAL_EDIT,
+    Permission.MATERIAL_DELETE,
+    Permission.MATERIAL_RENAME,
+    Permission.MATERIAL_MOVE,
+    Permission.MATERIAL_UPLOAD,
+    Permission.MATERIAL_BATCH_OPERATE,
+    Permission.EXPORT_EXCEL,
+    Permission.EXPORT_PDF,
+    Permission.DOCUMENT_GENERATE,
+    Permission.ARCHIVE_CREATE,
+    Permission.ARCHIVE_DELETE,
+    Permission.ARCHIVE_BORROW,
+    Permission.SYSTEM_RESET,
+  ],
+}
+
+export interface CurrentUser {
+  id: string
+  name: string
+  role: UserRole
+}
+
 export enum MaterialNodeType {
   FOLDER = 'folder',
   FILE = 'file',

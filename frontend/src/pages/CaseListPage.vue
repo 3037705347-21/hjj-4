@@ -20,6 +20,7 @@ import {
   Archive,
   BarChart3,
   RefreshCw,
+  Shield,
 } from 'lucide-vue-next'
 import { useCasesStore, caseStatusMap } from '@/stores/cases'
 import { countFiles } from '@/utils/treeUtils'
@@ -28,10 +29,12 @@ import type { Case, CaseStatus as CaseStatusType } from '@/types'
 import CaseFormModal from '@/components/CaseFormModal.vue'
 import { getMissingCount } from '@/utils/caseWorkflow'
 import { useGlobalSearch } from '@/composables/useGlobalSearch'
+import { usePermissions } from '@/composables/usePermissions'
 
 const router = useRouter()
 const store = useCasesStore()
 const { openSearch } = useGlobalSearch()
+const permissions = usePermissions()
 
 const goToTasks = () => {
   router.push({ name: 'task-list' })
@@ -162,9 +165,20 @@ const cancelDelete = () => {
     <header class="bg-white border-b border-gray-200 shadow-sm">
       <div class="max-w-7xl mx-auto px-6 py-6">
         <div class="flex items-center justify-between">
-          <div>
-            <h1 class="text-2xl font-bold text-gray-900">案件管理</h1>
-            <p class="mt-1 text-sm text-gray-500">管理所有案件及其材料档案</p>
+          <div class="flex items-center gap-4">
+            <div>
+              <h1 class="text-2xl font-bold text-gray-900">案件管理</h1>
+              <p class="mt-1 text-sm text-gray-500">管理所有案件及其材料档案</p>
+            </div>
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full">
+              <Shield class="w-4 h-4 text-blue-600" />
+              <span class="text-sm font-medium text-blue-700">
+                {{ permissions.currentUser?.name }}
+              </span>
+              <span class="text-xs text-blue-500">
+                · {{ permissions.currentRoleInfo?.label }}
+              </span>
+            </div>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <button
@@ -210,6 +224,7 @@ const cancelDelete = () => {
               统计报表
             </button>
             <button
+              v-if="permissions.canResetSystem"
               class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
               @click="handleResetDemoData"
               title="恢复为初始演示数据"
@@ -226,6 +241,7 @@ const cancelDelete = () => {
               <kbd class="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] text-gray-400 font-mono">Ctrl+K</kbd>
             </button>
             <button
+              v-if="permissions.canCreateCase"
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
               @click="handleCreate"
             >
@@ -389,6 +405,7 @@ const cancelDelete = () => {
               </div>
               <div class="flex items-center gap-1 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
+                  v-if="permissions.canEditCase"
                   class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   title="编辑"
                   @click="handleEdit(caseItem, $event)"
@@ -396,6 +413,7 @@ const cancelDelete = () => {
                   <Edit3 class="w-4 h-4" />
                 </button>
                 <button
+                  v-if="permissions.canDeleteCase"
                   class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="删除"
                   @click="confirmDelete(caseItem, $event)"
