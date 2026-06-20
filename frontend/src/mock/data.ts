@@ -23,7 +23,7 @@ const createFile = (name: string, uploader: string, fileSize: string, descriptio
   description,
 })
 
-export const mockCases: Case[] = [
+export const generateDemoCases = (): Case[] => [
   {
     id: generateId(),
     caseNumber: '(2026)京民初字第001号',
@@ -145,6 +145,8 @@ export const mockCases: Case[] = [
     ],
   },
 ]
+
+export const mockCases: Case[] = generateDemoCases()
 
 export const caseStatusMap: Record<CaseStatus, { label: string; class: string }> = {
   [CaseStatus.PENDING]: {

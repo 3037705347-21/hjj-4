@@ -21,6 +21,7 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-vue-next": "^0.511.0",
+    "pinia": "^3.0.4",
     "tailwind-merge": "^3.3.0",
     "vue": "^3.4.15",
     "vue-router": "^4.2.5",

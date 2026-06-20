@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import HomePage from './pages/HomePage.vue'
 import CaseListPage from './pages/CaseListPage.vue'
@@ -16,6 +17,7 @@ import GenerationRecordPage from './pages/GenerationRecordPage.vue'
 import ReportOverviewPage from './pages/ReportOverviewPage.vue'
 import ReportCaseDistributionPage from './pages/ReportCaseDistributionPage.vue'
 import ReportMaterialStatsPage from './pages/ReportMaterialStatsPage.vue'
+import { useCasesStore } from './stores/cases'
 import './style.css'
 
 const router = createRouter({
@@ -40,4 +42,13 @@ const router = createRouter({
   ],
 })
 
-createApp(App).use(router).mount('#app')
+const pinia = createPinia()
+const app = createApp(App)
+
+app.use(pinia)
+app.use(router)
+
+const casesStore = useCasesStore(pinia)
+casesStore.initialize()
+
+app.mount('#app')

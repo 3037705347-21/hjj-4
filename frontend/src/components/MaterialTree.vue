@@ -295,6 +295,7 @@ const toggleExpand = (nodeId: string) => {
     })
   }
   localMaterials.value = toggleInNodes(localMaterials.value)
+  emit('update:materials', localMaterials.value)
 }
 
 const handleAdd = (parentId: string | null, type: MaterialNodeType) => {

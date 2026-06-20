@@ -42,7 +42,8 @@ import CaseEventSummary from '@/components/CaseEventSummary.vue'
 import CommunicationRecordSummary from '@/components/CommunicationRecordSummary.vue'
 import CommunicationRecordList from '@/components/CommunicationRecordList.vue'
 import CommunicationRecordFormModal from '@/components/CommunicationRecordFormModal.vue'
-import { mockCases, caseStatusMap, generateId } from '@/mock/data'
+import { useCasesStore, caseStatusMap } from '@/stores/cases'
+import { generateId } from '@/mock/data'
 import { getTemplateByCaseType } from '@/mock/materialTemplates'
 import { computeTaskSummary, refreshOverdueTasks } from '@/mock/tasks'
 import { computeEventSummary, refreshOverdueEvents } from '@/mock/caseEvents'
@@ -67,6 +68,7 @@ type DetailTab = 'case-info' | 'communication'
 
 const route = useRoute()
 const router = useRouter()
+const store = useCasesStore()
 
 const currentCase = ref<Case | null>(null)
 const selectedNode = ref<MaterialNode | null>(null)
@@ -153,9 +155,9 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   const caseId = route.params.id as string
-  const found = mockCases.find(c => c.id === caseId)
+  const found = store.getCaseById(caseId)
   if (found) {
-    currentCase.value = found
+    currentCase.value = { ...found }
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
     statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
     loadGenerationRecords()
@@ -201,6 +203,9 @@ const handleSelectNode = (node: MaterialNode | null) => {
 
 const handleMaterialsUpdate = (materials: MaterialNode[]) => {
   currentMaterials.value = materials
+  if (currentCase.value) {
+    store.updateCaseMaterials(currentCase.value.id, materials)
+  }
 }
 
 const availableExportRanges = computed(() => {
@@ -481,11 +486,7 @@ const confirmStatusChange = () => {
     currentCase.value.status = pendingStatus.value
     currentCase.value.statusHistory = statusHistory.value
 
-    const idx = mockCases.findIndex(c => c.id === currentCase.value!.id)
-    if (idx !== -1) {
-      mockCases[idx].status = pendingStatus.value
-      mockCases[idx].statusHistory = statusHistory.value
-    }
+    store.updateCaseStatus(currentCase.value.id, pendingStatus.value, record)
   }
 
   cancelStatusChange()

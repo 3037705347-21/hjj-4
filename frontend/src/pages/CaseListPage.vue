@@ -19,8 +19,9 @@ import {
   MessageSquare,
   Archive,
   BarChart3,
+  RefreshCw,
 } from 'lucide-vue-next'
-import { mockCases, caseStatusMap, generateId } from '@/mock/data'
+import { useCasesStore, caseStatusMap } from '@/stores/cases'
 import { countFiles } from '@/utils/treeUtils'
 import { CaseStatus } from '@/types'
 import type { Case, CaseStatus as CaseStatusType } from '@/types'
@@ -28,6 +29,7 @@ import CaseFormModal from '@/components/CaseFormModal.vue'
 import { getMissingCount } from '@/utils/caseWorkflow'
 
 const router = useRouter()
+const store = useCasesStore()
 
 const goToTasks = () => {
   router.push({ name: 'task-list' })
@@ -53,7 +55,6 @@ const goToReports = () => {
   router.push({ name: 'report-overview' })
 }
 
-const cases = ref<Case[]>([...mockCases])
 const searchQuery = ref('')
 const statusFilter = ref<CaseStatusType | 'all'>('all')
 const missingFilter = ref<'all' | 'has_missing' | 'no_missing'>('all')
@@ -64,6 +65,10 @@ const editingCase = ref<Case | null>(null)
 
 const showDeleteConfirm = ref(false)
 const deletingCase = ref<Case | null>(null)
+
+const showResetConfirm = ref(false)
+
+const cases = computed(() => store.cases)
 
 const filteredCases = computed(() => {
   return cases.value.filter(c => {
@@ -108,25 +113,11 @@ const handleEdit = (caseItem: Case, event: MouseEvent) => {
 
 const handleFormSubmit = (data: Omit<Case, 'id' | 'materials'> & { id?: string }) => {
   if (formMode.value === 'create') {
-    const newCase: Case = {
-      ...data,
-      id: generateId(),
-      materials: [],
-    }
-    cases.value = [...cases.value, newCase]
-    const idx = mockCases.findIndex(c => c.id === newCase.id)
-    if (idx === -1) {
-      mockCases.push(newCase)
-    }
+    store.addCase(data)
   } else {
     const id = data.id!
-    cases.value = cases.value.map(c =>
-      c.id === id ? { ...c, ...data, id } : c
-    )
-    const idx = mockCases.findIndex(c => c.id === id)
-    if (idx !== -1) {
-      mockCases[idx] = { ...mockCases[idx], ...data, id }
-    }
+    const { id: _id, ...updates } = data
+    store.updateCase(id, updates)
   }
   showFormModal.value = false
 }
@@ -140,13 +131,22 @@ const confirmDelete = (caseItem: Case, event: MouseEvent) => {
 const executeDelete = () => {
   if (!deletingCase.value) return
   const id = deletingCase.value.id
-  cases.value = cases.value.filter(c => c.id !== id)
-  const idx = mockCases.findIndex(c => c.id === id)
-  if (idx !== -1) {
-    mockCases.splice(idx, 1)
-  }
+  store.deleteCase(id)
   showDeleteConfirm.value = false
   deletingCase.value = null
+}
+
+const handleResetDemoData = () => {
+  showResetConfirm.value = true
+}
+
+const confirmResetDemoData = () => {
+  store.resetToDemoData()
+  showResetConfirm.value = false
+}
+
+const cancelResetDemoData = () => {
+  showResetConfirm.value = false
 }
 
 const cancelDelete = () => {
@@ -206,6 +206,14 @@ const cancelDelete = () => {
             >
               <BarChart3 class="w-5 h-5 text-sky-600" />
               统计报表
+            </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors border border-gray-200 shadow-sm"
+              @click="handleResetDemoData"
+              title="恢复为初始演示数据"
+            >
+              <RefreshCw class="w-5 h-5 text-amber-600" />
+              恢复演示数据
             </button>
             <button
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -431,6 +439,43 @@ const cancelDelete = () => {
               @click="executeDelete"
             >
               确认删除
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showResetConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50" @click="cancelResetDemoData"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="p-3 bg-amber-100 rounded-full">
+              <RefreshCw class="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">恢复演示数据</h3>
+              <p class="text-sm text-gray-500">重置所有案件和材料为初始示例数据</p>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600 mb-2">
+            确定要将所有数据恢复为初始演示数据吗？
+          </p>
+          <p class="text-sm text-amber-600 mb-6">
+            此操作将覆盖您当前的所有案件和材料数据，且无法撤销。
+          </p>
+          <div class="flex items-center justify-end gap-3">
+            <button
+              class="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+              @click="cancelResetDemoData"
+            >
+              取消
+            </button>
+            <button
+              class="px-4 py-2 text-sm text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors shadow-sm font-medium"
+              @click="confirmResetDemoData"
+            >
+              确认恢复
             </button>
           </div>
         </div>
