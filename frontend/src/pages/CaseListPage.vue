@@ -21,20 +21,26 @@ import {
   BarChart3,
   RefreshCw,
   Shield,
+  Star,
+  StarOff,
 } from 'lucide-vue-next'
 import { useCasesStore, caseStatusMap } from '@/stores/cases'
 import { countFiles } from '@/utils/treeUtils'
 import { CaseStatus } from '@/types'
 import type { Case, CaseStatus as CaseStatusType } from '@/types'
 import CaseFormModal from '@/components/CaseFormModal.vue'
+import CaseQuickAccessSection from '@/components/CaseQuickAccessSection.vue'
 import { getMissingCount } from '@/utils/caseWorkflow'
 import { useGlobalSearch } from '@/composables/useGlobalSearch'
 import { usePermissions } from '@/composables/usePermissions'
+import { useCaseQuickAccess } from '@/composables/useCaseQuickAccess'
 
 const router = useRouter()
 const store = useCasesStore()
 const { openSearch } = useGlobalSearch()
 const permissions = usePermissions()
+const quickAccess = useCaseQuickAccess()
+quickAccess.initialize()
 
 const goToTasks = () => {
   router.push({ name: 'task-list' })
@@ -123,6 +129,10 @@ const handleFormSubmit = (data: Omit<Case, 'id' | 'materials'> & { id?: string }
     const id = data.id!
     const { id: _id, ...updates } = data
     store.updateCase(id, updates)
+    const updatedCase = store.getCaseById(id)
+    if (updatedCase) {
+      quickAccess.updateRecentCaseInfo(updatedCase)
+    }
   }
   showFormModal.value = false
 }
@@ -137,6 +147,7 @@ const executeDelete = () => {
   if (!deletingCase.value) return
   const id = deletingCase.value.id
   store.deleteCase(id)
+  quickAccess.deleteCaseCleanup(id)
   showDeleteConfirm.value = false
   deletingCase.value = null
 }
@@ -312,6 +323,8 @@ const cancelDelete = () => {
         </div>
       </div>
 
+      <CaseQuickAccessSection variant="list" />
+
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="p-4 border-b border-gray-100">
           <div class="flex flex-col lg:flex-row gap-3">
@@ -404,6 +417,14 @@ const cancelDelete = () => {
                 </div>
               </div>
               <div class="flex items-center gap-1 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  class="p-2 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
+                  :title="quickAccess.isFavorite(caseItem.id) ? '取消常用置顶' : '设为常用置顶'"
+                  @click="(e: MouseEvent) => { e.stopPropagation(); quickAccess.toggleFavoriteCase(caseItem); }"
+                >
+                  <Star v-if="quickAccess.isFavorite(caseItem.id)" class="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <StarOff v-else class="w-4 h-4" />
+                </button>
                 <button
                   v-if="permissions.canEditCase"
                   class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

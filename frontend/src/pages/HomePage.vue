@@ -19,6 +19,7 @@ import {
   Search,
 } from 'lucide-vue-next'
 import { useGlobalSearch } from '@/composables/useGlobalSearch'
+import CaseQuickAccessSection from '@/components/CaseQuickAccessSection.vue'
 
 const router = useRouter()
 const { openSearch } = useGlobalSearch()
@@ -257,6 +258,10 @@ const colorMap: Record<string, string> = {
           </button>
         </div>
       </div>
+    </section>
+
+    <section class="max-w-7xl mx-auto px-6 pb-8">
+      <CaseQuickAccessSection variant="home" />
     </section>
 
     <section class="max-w-7xl mx-auto px-6 pb-20">

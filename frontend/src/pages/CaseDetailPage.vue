@@ -44,6 +44,8 @@ import {
   Maximize2,
   Filter,
   Shield,
+  Star,
+  StarOff,
 } from 'lucide-vue-next'
 import MaterialTree from '@/components/MaterialTree.vue'
 import CaseTaskSummary from '@/components/CaseTaskSummary.vue'
@@ -86,6 +88,7 @@ import {
 } from '@/utils/fileStorage'
 import { usePermissions } from '@/composables/usePermissions'
 import { useCaseOperationLog } from '@/composables/useCaseOperationLog'
+import { useCaseQuickAccess } from '@/composables/useCaseQuickAccess'
 
 type DetailTab = 'case-info' | 'communication'
 
@@ -93,6 +96,8 @@ const route = useRoute()
 const router = useRouter()
 const store = useCasesStore()
 const permissions = usePermissions()
+const quickAccess = useCaseQuickAccess()
+quickAccess.initialize()
 
 provide('logCaseOperation', (operationType: OperationType, summary: string, details?: Record<string, unknown>) => {
   if (currentCase.value) {
@@ -209,6 +214,7 @@ const loadCaseData = (caseId: string) => {
     currentMaterials.value = JSON.parse(JSON.stringify(found.materials))
     statusHistory.value = found.statusHistory ? JSON.parse(JSON.stringify(found.statusHistory)) : []
     loadGenerationRecords()
+    quickAccess.addRecentCase(found, 'view')
   } else {
     currentCase.value = null
     currentMaterials.value = []
@@ -338,6 +344,7 @@ const handleMaterialsUpdate = (materials: MaterialNode[]) => {
   currentMaterials.value = materials
   if (currentCase.value) {
     store.updateCaseMaterials(currentCase.value.id, materials)
+    quickAccess.addRecentCase(currentCase.value, 'material')
   }
 }
 
@@ -612,6 +619,7 @@ const saveCaseInfoEdit = () => {
 
   store.updateCase(currentCase.value.id, updates)
   currentCase.value = { ...currentCase.value, ...updates }
+  quickAccess.updateRecentCaseInfo(currentCase.value)
 
   const caseLog = useCaseOperationLog(currentCase.value.id)
   const changes: string[] = []
@@ -735,6 +743,7 @@ const confirmStatusChange = () => {
     currentCase.value.statusHistory = statusHistory.value
 
     store.updateCaseStatus(currentCase.value.id, pendingStatus.value, record)
+    quickAccess.updateRecentCaseInfo(currentCase.value)
 
     const caseLog = useCaseOperationLog(currentCase.value.id)
     const fromLabel = record.fromStatus ? caseStatusMap[record.fromStatus]?.label || record.fromStatus : '新建'
@@ -1191,6 +1200,18 @@ const closeFilePreview = () => {
             </div>
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
+            <button
+              v-if="!isEditingCaseInfo"
+              class="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              :title="quickAccess.isFavorite(currentCase.id) ? '取消常用置顶' : '设为常用置顶'"
+              @click="quickAccess.toggleFavoriteCase(currentCase)"
+            >
+              <Star v-if="quickAccess.isFavorite(currentCase.id)" class="w-4 h-4 fill-amber-400 text-amber-400" />
+              <StarOff v-else class="w-4 h-4" />
+              <span class="hidden sm:inline">
+                {{ quickAccess.isFavorite(currentCase.id) ? '已置顶' : '置顶常用' }}
+              </span>
+            </button>
             <template v-if="isEditingCaseInfo">
               <button
                 class="flex items-center gap-2 px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors shadow-sm"
