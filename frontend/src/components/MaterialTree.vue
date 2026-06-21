@@ -515,9 +515,12 @@ const handleFileSelect = async (event: Event) => {
 }
 
 const handleTreeDragOver = (e: DragEvent) => {
-  e.preventDefault()
-  if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+  const hasFiles = e.dataTransfer && e.dataTransfer.types.includes('Files')
+  if (hasFiles && permissions.canUploadMaterial) {
+    e.preventDefault()
     isDragover.value = true
+  } else if (!hasFiles && permissions.canMoveMaterial) {
+    e.preventDefault()
   }
 }
 
@@ -528,6 +531,8 @@ const handleTreeDragLeave = () => {
 const handleTreeDrop = async (e: DragEvent) => {
   e.preventDefault()
   isDragover.value = false
+
+  if (!permissions.canUploadMaterial) return
 
   if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return
 
@@ -541,7 +546,7 @@ const handleTreeDrop = async (e: DragEvent) => {
   }
 }
 
-const handleUploadFiles = async (parentId: string, files: File[]) => {
+const handleUploadFiles = async (parentId: string | null, files: File[]) => {
   for (const file of files) {
     try {
       await processFileUpload(file, parentId)
@@ -631,6 +636,7 @@ const handleDragStart = (nodeId: string) => {
 const handleDragOver = () => {}
 
 const handleDrop = (targetId: string | null, position: 'inside' | 'before' | 'after') => {
+  if (!permissions.canMoveMaterial) return
   if (!draggingNodeId.value) return
   if (draggingNodeId.value === targetId) return
   if (targetId && isDescendant(localMaterials.value, draggingNodeId.value, targetId)) return

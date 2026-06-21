@@ -239,9 +239,18 @@ const handleDrop = (e: DragEvent, node: MaterialNode) => {
   dragOverState.value = { nodeId: null, position: null }
 }
 
-const handleRootDrop = (e: DragEvent) => {
+const handleRootDrop = async (e: DragEvent) => {
   e.preventDefault()
-  emit('drop', null, 'inside')
+  e.stopPropagation()
+  const hasFiles = e.dataTransfer?.types.includes('Files')
+  if (hasFiles && permissions.canUploadMaterial) {
+    const files = Array.from(e.dataTransfer!.files)
+    if (files.length > 0) {
+      emit('uploadFiles', null, files)
+    }
+  } else if (!hasFiles && permissions.canMoveMaterial) {
+    emit('drop', null, 'inside')
+  }
   dragOverState.value = { nodeId: null, position: null }
 }
 
@@ -267,8 +276,24 @@ const getDropClass = (node: MaterialNode) => {
 <template>
   <div
     class="select-none"
-    @dragover="(e) => { if (level === 0 && permissions.canMoveMaterial) e.preventDefault() }"
-    @drop="(e) => { if (level === 0 && permissions.canMoveMaterial) handleRootDrop(e) }"
+    @dragover="(e) => {
+      if (level !== 0) return
+      const hasFiles = e.dataTransfer?.types.includes('Files')
+      if (hasFiles && permissions.canUploadMaterial) {
+        e.preventDefault()
+      } else if (!hasFiles && permissions.canMoveMaterial) {
+        e.preventDefault()
+      }
+    }"
+    @drop="(e) => {
+      if (level !== 0) return
+      const hasFiles = e.dataTransfer?.types.includes('Files')
+      if (hasFiles && permissions.canUploadMaterial) {
+        handleRootDrop(e)
+      } else if (!hasFiles && permissions.canMoveMaterial) {
+        handleRootDrop(e)
+      }
+    }"
   >
     <div
       v-for="node in nodes"
