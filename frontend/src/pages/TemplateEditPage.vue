@@ -21,12 +21,15 @@ import {
 import type { DocumentTemplate, TemplateType, OutputFormat, ContentSchemaField } from '@/types'
 import { TemplateType as TT, templateTypeMap, OutputFormat as OF, outputFormatMap, caseFieldDefinitions, materialFieldDefinitions } from '@/types'
 import { getTemplateById, createTemplate, updateTemplate, createDefaultTemplate } from '@/mock/documentTemplates'
+import { usePermissions } from '@/composables/usePermissions'
 
 const route = useRoute()
 const router = useRouter()
+const permissions = usePermissions()
 
 const isEditMode = computed(() => !!route.params.id)
 const templateId = computed(() => route.params.id as string)
+const isReadonly = computed(() => !permissions.canManageTemplate)
 
 const form = ref<Partial<DocumentTemplate>>({
   name: '',
@@ -276,6 +279,7 @@ const formatDate = (dateStr: string): string => {
               取消
             </button>
             <button
+              v-if="permissions.canManageTemplate"
               class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               :disabled="!hasChanges"
               @click="handleSave"
@@ -304,6 +308,7 @@ const formatDate = (dateStr: string): string => {
                 <input
                   v-model="form.name"
                   type="text"
+                  :disabled="isReadonly"
                   class="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
                   :class="formErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-200'"
                   placeholder="请输入模板名称"
@@ -335,7 +340,7 @@ const formatDate = (dateStr: string): string => {
                       type="radio"
                       :value="opt.value"
                       class="mt-1"
-                      :disabled="isEditMode"
+                      :disabled="isEditMode || isReadonly"
                     />
                     <div class="ml-3 min-w-0 flex-1">
                       <p class="text-sm font-medium text-gray-900">{{ opt.label }}</p>
@@ -364,7 +369,7 @@ const formatDate = (dateStr: string): string => {
                         : 'border-gray-200 hover:border-gray-300',
                     ]"
                   >
-                    <input v-model="form.outputFormat" type="radio" :value="opt.value" />
+                    <input v-model="form.outputFormat" type="radio" :value="opt.value" :disabled="isReadonly" />
                     <Download class="w-4 h-4" />
                     <span class="text-sm">{{ opt.label }}</span>
                   </label>
@@ -380,6 +385,7 @@ const formatDate = (dateStr: string): string => {
                 <textarea
                   v-model="form.description"
                   rows="3"
+                  :disabled="isReadonly"
                   class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                   placeholder="请输入模板描述（可选）"
                 ></textarea>
@@ -395,6 +401,7 @@ const formatDate = (dateStr: string): string => {
               </h2>
               <div class="flex items-center gap-2">
                 <button
+                  v-if="permissions.canManageTemplate"
                   class="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                   @click="resetToDefaultSchema"
                 >
@@ -402,6 +409,7 @@ const formatDate = (dateStr: string): string => {
                   重置为默认
                 </button>
                 <button
+                  v-if="permissions.canManageTemplate"
                   class="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                   @click="addCustomField"
                 >
@@ -486,17 +494,20 @@ const formatDate = (dateStr: string): string => {
                   <input
                     v-model="field.label"
                     type="text"
+                    :disabled="isReadonly"
                     class="flex-1 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     placeholder="字段名称"
                   />
                   <select
                     v-model="field.source"
+                    :disabled="isReadonly"
                     class="px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
                     <option value="case">案件</option>
                     <option value="material">材料</option>
                   </select>
                   <button
+                    v-if="permissions.canManageTemplate"
                     class="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                     @click="removeField(field.key)"
                   >
@@ -526,6 +537,7 @@ const formatDate = (dateStr: string): string => {
                 <input
                   v-model="form.contentSchema.includeHeader"
                   type="checkbox"
+                  :disabled="isReadonly"
                   class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                 />
               </div>
@@ -537,6 +549,7 @@ const formatDate = (dateStr: string): string => {
                 <input
                   v-model="form.contentSchema.includeFooter"
                   type="checkbox"
+                  :disabled="isReadonly"
                   class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                 />
               </div>
@@ -555,6 +568,7 @@ const formatDate = (dateStr: string): string => {
                       v-model="form.contentSchema.pageOrientation"
                       type="radio"
                       value="portrait"
+                      :disabled="isReadonly"
                     />
                     <span class="text-sm">纵向</span>
                   </label>
@@ -570,6 +584,7 @@ const formatDate = (dateStr: string): string => {
                       v-model="form.contentSchema.pageOrientation"
                       type="radio"
                       value="landscape"
+                      :disabled="isReadonly"
                     />
                     <span class="text-sm">横向</span>
                   </label>

@@ -110,6 +110,7 @@ export const useUserStore = defineStore('user', () => {
   const canDeleteArchive = computed(() => hasPermission(Permission.ARCHIVE_DELETE))
   const canResetSystem = computed(() => hasPermission(Permission.SYSTEM_RESET))
   const canCreateFolder = computed(() => hasPermission(Permission.MATERIAL_CREATE))
+  const canManageTemplate = computed(() => hasPermission(Permission.TEMPLATE_MANAGE))
 
   return {
     currentUser,
@@ -143,5 +144,6 @@ export const useUserStore = defineStore('user', () => {
     canDeleteArchive,
     canResetSystem,
     canCreateFolder,
+    canManageTemplate,
   }
 })

@@ -267,8 +267,8 @@ const getDropClass = (node: MaterialNode) => {
 <template>
   <div
     class="select-none"
-    @dragover="(e) => { if (level === 0) e.preventDefault() }"
-    @drop="(e) => { if (level === 0) handleRootDrop(e) }"
+    @dragover="(e) => { if (level === 0 && permissions.canMoveMaterial) e.preventDefault() }"
+    @drop="(e) => { if (level === 0 && permissions.canMoveMaterial) handleRootDrop(e) }"
   >
     <div
       v-for="node in nodes"
@@ -292,12 +292,13 @@ const getDropClass = (node: MaterialNode) => {
         ]"
         :style="{ paddingLeft: `${level * 20 + 8}px` }"
         @click="(e) => { if (!node.isUploading) handleSelect(e, node) }"
-        :draggable="!node.isUploading"
-        @dragstart="(e) => { if (!e.dataTransfer?.types.includes('Files')) handleDragStart(e, node) }"
+        :draggable="!node.isUploading && permissions.canMoveMaterial"
+        @dragstart="(e) => { if (!e.dataTransfer?.types.includes('Files') && permissions.canMoveMaterial) handleDragStart(e, node); else if (!permissions.canMoveMaterial) e.preventDefault() }"
         @dragover="(e) => {
-          if (e.dataTransfer?.types.includes('Files')) {
+          if (!permissions.canMoveMaterial && !permissions.canUploadMaterial) return
+          if (e.dataTransfer?.types.includes('Files') && permissions.canUploadMaterial) {
             handleFileDragOver(e, node)
-          } else {
+          } else if (permissions.canMoveMaterial) {
             handleDragOver(e, node)
           }
         }"
@@ -309,10 +310,12 @@ const getDropClass = (node: MaterialNode) => {
           }
         }"
         @drop="(e) => {
-          if (e.dataTransfer?.types.includes('Files')) {
+          if (e.dataTransfer?.types.includes('Files') && permissions.canUploadMaterial) {
             handleFileDrop(e, node)
-          } else {
+          } else if (permissions.canMoveMaterial) {
             handleDrop(e, node)
+          } else {
+            e.preventDefault()
           }
         }"
       >
@@ -334,6 +337,7 @@ const getDropClass = (node: MaterialNode) => {
           <AlertTriangle class="w-4 h-4 text-red-500 flex-shrink-0 mr-2" />
           <span class="text-xs text-red-600 truncate flex-1">上传失败</span>
           <button
+            v-if="permissions.canDeleteMaterial"
             class="p-0.5 hover:bg-red-100 rounded text-red-500 flex-shrink-0"
             @click.stop="$emit('delete', node)"
             title="删除"

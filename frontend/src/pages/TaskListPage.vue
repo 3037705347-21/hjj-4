@@ -25,6 +25,7 @@ import {
   ArrowRight,
   History,
   FolderTree,
+  Shield,
 } from 'lucide-vue-next'
 import {
   mockTasks,
@@ -44,7 +45,9 @@ import { mockCases } from '@/mock/data'
 import { TaskStatus, TaskPriority, TaskType } from '@/types'
 import type { CaseTask, TaskStatus as TaskStatusType, TaskPriority as TaskPriorityType, TaskType as TaskTypeType } from '@/types'
 import TaskFormModal from '@/components/TaskFormModal.vue'
+import { usePermissions } from '@/composables/usePermissions'
 
+const permissions = usePermissions()
 const router = useRouter()
 const route = useRoute()
 
@@ -300,7 +303,13 @@ const getTypeIconColor = (type: TaskTypeType): string => {
       <div class="max-w-7xl mx-auto px-6 py-6">
         <div class="flex items-center justify-between">
           <div>
-            <h1 class="text-2xl font-bold text-gray-900">案件任务与提醒</h1>
+            <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              案件任务与提醒
+              <div class="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-50 border border-blue-200 rounded-full">
+                <Shield class="w-3.5 h-3.5 text-blue-600" />
+                <span class="text-xs font-medium text-blue-700">{{ permissions.currentRoleInfo?.label }}</span>
+              </div>
+            </h1>
             <p class="mt-1 text-sm text-gray-500">管理所有案件的待办事项、截止日期和进度跟踪</p>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
@@ -326,6 +335,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
               庭期日历
             </button>
             <button
+              v-if="permissions.canEditCase"
               class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
               @click="handleCreate"
             >
@@ -496,7 +506,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
 
                 <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-1.5">
                   {{ task.title }}
-                  <template v-if="task.status === TaskStatus.PENDING">
+                  <template v-if="task.status === TaskStatus.PENDING && permissions.canEditCase">
                     <button
                       class="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-blue-600 hover:text-blue-800 hover:underline"
                       @click="quickStatusChange(task, TaskStatus.ASSIGNED, $event)"
@@ -504,7 +514,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
                       → 指派
                     </button>
                   </template>
-                  <template v-else-if="task.status === TaskStatus.ASSIGNED">
+                  <template v-else-if="task.status === TaskStatus.ASSIGNED && permissions.canEditCase">
                     <button
                       class="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-yellow-600 hover:text-yellow-800 hover:underline"
                       @click="quickStatusChange(task, TaskStatus.IN_PROGRESS, $event)"
@@ -512,7 +522,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
                       → 开始处理
                     </button>
                   </template>
-                  <template v-else-if="task.status === TaskStatus.IN_PROGRESS || task.status === TaskStatus.OVERDUE">
+                  <template v-else-if="(task.status === TaskStatus.IN_PROGRESS || task.status === TaskStatus.OVERDUE) && permissions.canEditCase">
                     <button
                       class="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-0.5"
                       @click="quickStatusChange(task, TaskStatus.COMPLETED, $event)"
@@ -553,6 +563,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
 
               <div class="flex items-center gap-1 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
+                  v-if="permissions.canEditCase"
                   class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   title="变更状态"
                   @click="openStatusChange(task, $event)"
@@ -560,6 +571,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
                   <Clock class="w-4 h-4" />
                 </button>
                 <button
+                  v-if="permissions.canEditCase"
                   class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                   title="完成"
                   @click="quickStatusChange(task, TaskStatus.COMPLETED, $event)"
@@ -567,6 +579,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
                   <CheckCircle class="w-4 h-4" />
                 </button>
                 <button
+                  v-if="permissions.canEditCase"
                   class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   title="编辑"
                   @click="handleEdit(task, $event)"
@@ -574,6 +587,7 @@ const getTypeIconColor = (type: TaskTypeType): string => {
                   <Edit3 class="w-4 h-4" />
                 </button>
                 <button
+                  v-if="permissions.canDeleteCase"
                   class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="删除"
                   @click="confirmDelete(task, $event)"

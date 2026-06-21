@@ -46,5 +46,6 @@ export function usePermissions() {
     canDeleteArchive: userStore.canDeleteArchive,
     canResetSystem: userStore.canResetSystem,
     canCreateFolder: userStore.canCreateFolder,
+    canManageTemplate: userStore.canManageTemplate,
   }
 }

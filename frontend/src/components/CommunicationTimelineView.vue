@@ -38,6 +38,7 @@ import {
 } from '@/mock/communicationRecords'
 import { mockCases } from '@/mock/data'
 import CommunicationRecordFormModal from '@/components/CommunicationRecordFormModal.vue'
+import { usePermissions } from '@/composables/usePermissions'
 
 const props = defineProps<{
   caseId?: string
@@ -52,6 +53,8 @@ const emit = defineEmits<{
   (e: 'refresh'): void
   (e: 'go-to-case-detail', caseId: string): void
 }>()
+
+const permissions = usePermissions()
 
 const records = ref<CommunicationRecord[]>([])
 
@@ -500,6 +503,7 @@ const getDateLabel = (dateStr: string): string => {
                           <FileText class="w-4 h-4" />
                         </button>
                         <button
+                          v-if="permissions.canEditCase"
                           class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           @click.stop="handleEdit(record, $event)"
                           title="编辑"
@@ -507,6 +511,7 @@ const getDateLabel = (dateStr: string): string => {
                           <Edit3 class="w-4 h-4" />
                         </button>
                         <button
+                          v-if="permissions.canDeleteCase"
                           class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           @click.stop="confirmDelete(record, $event)"
                           title="删除"
@@ -692,6 +697,7 @@ const getDateLabel = (dateStr: string): string => {
 
           <div class="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
             <button
+              v-if="permissions.canDeleteCase"
               class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               @click="confirmDelete(selectedRecord, $event)"
               title="删除"
@@ -699,7 +705,7 @@ const getDateLabel = (dateStr: string): string => {
               <Trash2 class="w-4 h-4" />
             </button>
             <button
-              v-if="!selectedRecord.isFollowedUp"
+              v-if="!selectedRecord.isFollowedUp && permissions.canEditCase"
               class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
               @click="handleMarkFollowedUp(selectedRecord, $event); closeDetail()"
             >
@@ -707,6 +713,7 @@ const getDateLabel = (dateStr: string): string => {
               标记已跟进
             </button>
             <button
+              v-if="permissions.canEditCase"
               class="px-3 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5"
               @click="handleEdit(selectedRecord, $event); closeDetail()"
             >

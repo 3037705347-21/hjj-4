@@ -21,8 +21,10 @@ import {
 import type { DocumentTemplate, TemplateType } from '@/types'
 import { TemplateType as TT, templateTypeMap, OutputFormat, outputFormatMap } from '@/types'
 import { getTemplates, deleteTemplate, createDefaultTemplate, updateTemplate, getGenerationRecordsByTemplateId, duplicateTemplate as duplicateTemplateInMock } from '@/mock/documentTemplates'
+import { usePermissions } from '@/composables/usePermissions'
 
 const router = useRouter()
+const permissions = usePermissions()
 
 const templates = ref<DocumentTemplate[]>([])
 const searchKeyword = ref('')
@@ -170,6 +172,7 @@ const clearFilters = () => {
           </div>
           <div class="flex items-center gap-3">
             <button
+              v-if="permissions.canManageTemplate"
               class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
               @click="goToCreate"
             >
@@ -305,6 +308,7 @@ const clearFilters = () => {
                   <Clock class="w-4 h-4" />
                 </button>
                 <button
+                  v-if="permissions.canManageTemplate"
                   class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                   title="复制模板"
                   @click.stop="duplicateTemplate(template)"
@@ -312,6 +316,7 @@ const clearFilters = () => {
                   <Copy class="w-4 h-4" />
                 </button>
                 <button
+                  v-if="permissions.canManageTemplate"
                   class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   title="编辑模板"
                   @click="goToEdit(template.templateId)"
@@ -319,7 +324,7 @@ const clearFilters = () => {
                   <Edit3 class="w-4 h-4" />
                 </button>
                 <button
-                  v-if="!template.isDefault"
+                  v-if="!template.isDefault && permissions.canManageTemplate"
                   class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="删除模板"
                   @click.stop="confirmDelete(template.templateId)"

@@ -39,6 +39,7 @@ import {
 import { mockCases } from '@/mock/data'
 import { flattenMaterialTree } from '@/utils/treeUtils'
 import CommunicationRecordFormModal from '@/components/CommunicationRecordFormModal.vue'
+import { usePermissions } from '@/composables/usePermissions'
 
 const props = defineProps<{
   caseId?: string
@@ -52,6 +53,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'refresh'): void
 }>()
+
+const permissions = usePermissions()
 
 const records = ref<CommunicationRecord[]>([])
 const expandedRecord = ref<string | null>(null)
@@ -420,7 +423,7 @@ const getDaysAgo = (dateStr: string): string => {
 
             <div class="flex items-center gap-0.5 flex-shrink-0">
               <button
-                v-if="!record.isFollowedUp"
+                v-if="!record.isFollowedUp && permissions.canEditCase"
                 class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
                 title="标记已跟进"
                 @click.stop="handleMarkFollowedUp(record, $event)"
@@ -435,6 +438,7 @@ const getDaysAgo = (dateStr: string): string => {
                 <FileText class="w-4 h-4" />
               </button>
               <button
+                v-if="permissions.canEditCase"
                 class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                 title="编辑"
                 @click.stop="handleEdit(record, $event)"
@@ -442,6 +446,7 @@ const getDaysAgo = (dateStr: string): string => {
                 <Edit3 class="w-4 h-4" />
               </button>
               <button
+                v-if="permissions.canDeleteCase"
                 class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                 title="删除"
                 @click.stop="confirmDelete(record, $event)"
@@ -637,6 +642,7 @@ const getDaysAgo = (dateStr: string): string => {
 
           <div class="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
             <button
+              v-if="permissions.canDeleteCase"
               class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               @click="confirmDelete(selectedRecord, $event)"
               title="删除"
@@ -644,7 +650,7 @@ const getDaysAgo = (dateStr: string): string => {
               <Trash2 class="w-4 h-4" />
             </button>
             <button
-              v-if="!selectedRecord.isFollowedUp"
+              v-if="!selectedRecord.isFollowedUp && permissions.canEditCase"
               class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
               @click="handleMarkFollowedUp(selectedRecord, $event); closeDetail()"
             >
@@ -652,6 +658,7 @@ const getDaysAgo = (dateStr: string): string => {
               标记已跟进
             </button>
             <button
+              v-if="permissions.canEditCase"
               class="px-3 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5"
               @click="handleEdit(selectedRecord, $event); closeDetail()"
             >

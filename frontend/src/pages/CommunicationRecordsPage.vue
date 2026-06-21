@@ -13,7 +13,9 @@ import {
   Mail,
   FileWarning,
   AlertCircle,
+  Shield,
 } from 'lucide-vue-next'
+import { usePermissions } from '@/composables/usePermissions'
 import CommunicationRecordList from '@/components/CommunicationRecordList.vue'
 import CommunicationTimelineView from '@/components/CommunicationTimelineView.vue'
 import CommunicationRecordFormModal from '@/components/CommunicationRecordFormModal.vue'
@@ -29,6 +31,7 @@ type ViewMode = 'list' | 'timeline'
 
 const router = useRouter()
 const route = useRoute()
+const permissions = usePermissions()
 
 const viewMode = ref<ViewMode>('list')
 const showFormModal = ref(false)
@@ -134,13 +137,25 @@ const goToCaseDetail = (caseId: string) => {
               </p>
             </div>
           </div>
-          <button
-            class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-            @click="handleCreate"
-          >
-            <Plus class="w-4 h-4" />
-            新增记录
-          </button>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full">
+              <Shield class="w-3.5 h-3.5 text-blue-600" />
+              <span class="text-sm font-medium text-blue-700">
+                {{ permissions.currentUser?.name }}
+              </span>
+              <span class="text-xs text-blue-500">
+                · {{ permissions.currentRoleInfo?.label }}
+              </span>
+            </div>
+            <button
+              v-if="permissions.canEditCase"
+              class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              @click="handleCreate"
+            >
+              <Plus class="w-4 h-4" />
+              新增记录
+            </button>
+          </div>
         </div>
       </div>
     </header>

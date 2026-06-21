@@ -48,6 +48,7 @@ export enum Permission {
   ARCHIVE_BORROW = 'archive:borrow',
 
   SYSTEM_RESET = 'system:reset',
+  TEMPLATE_MANAGE = 'template:manage',
 }
 
 export const rolePermissions: Record<UserRole, Permission[]> = {
@@ -95,6 +96,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     Permission.ARCHIVE_DELETE,
     Permission.ARCHIVE_BORROW,
     Permission.SYSTEM_RESET,
+    Permission.TEMPLATE_MANAGE,
   ],
 }
 

@@ -38,6 +38,9 @@ import {
 } from '@/mock/tasks'
 import { flattenMaterialTree } from '@/utils/treeUtils'
 import TaskFormModal from '@/components/TaskFormModal.vue'
+import { usePermissions } from '@/composables/usePermissions'
+
+const permissions = usePermissions()
 
 const props = defineProps<{
   caseId: string
@@ -255,6 +258,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
           显示已完成
         </label>
         <button
+          v-if="permissions.canEditCase"
           class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
           @click="handleCreate"
         >
@@ -299,7 +303,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
 
               <h3 class="text-sm font-medium text-gray-900 mb-1 flex items-center gap-1.5">
                 {{ task.title }}
-                <template v-if="task.status === TaskStatus.PENDING">
+                <template v-if="permissions.canEditCase && task.status === TaskStatus.PENDING">
                   <button
                     class="text-[11px] text-blue-600 hover:text-blue-800 hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
                     @click.stop="quickStatusChange(task, TaskStatus.ASSIGNED, $event)"
@@ -307,7 +311,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
                     → 指派
                   </button>
                 </template>
-                <template v-else-if="task.status === TaskStatus.ASSIGNED">
+                <template v-else-if="permissions.canEditCase && task.status === TaskStatus.ASSIGNED">
                   <button
                     class="text-[11px] text-yellow-600 hover:text-yellow-800 hover:underline transition-opacity"
                     @click.stop="quickStatusChange(task, TaskStatus.IN_PROGRESS, $event)"
@@ -315,7 +319,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
                     → 开始
                   </button>
                 </template>
-                <template v-else-if="task.status === TaskStatus.IN_PROGRESS || task.status === TaskStatus.OVERDUE">
+                <template v-else-if="permissions.canEditCase && (task.status === TaskStatus.IN_PROGRESS || task.status === TaskStatus.OVERDUE)">
                   <button
                     class="text-[11px] text-green-600 hover:text-green-800 hover:underline transition-opacity flex items-center gap-0.5"
                     @click.stop="quickStatusChange(task, TaskStatus.COMPLETED, $event)"
@@ -349,6 +353,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
 
             <div class="flex items-center gap-0.5 flex-shrink-0">
               <button
+                v-if="permissions.canEditCase"
                 class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
                 title="标记完成"
                 @click.stop="quickStatusChange(task, TaskStatus.COMPLETED, $event)"
@@ -356,6 +361,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
                 <CheckCircle class="w-4 h-4" />
               </button>
               <button
+                v-if="permissions.canEditCase"
                 class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                 title="编辑"
                 @click.stop="handleEdit(task, $event)"
@@ -363,6 +369,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
                 <Edit3 class="w-4 h-4" />
               </button>
               <button
+                v-if="permissions.canDeleteCase"
                 class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                 title="删除"
                 @click.stop="confirmDelete(task, $event)"
@@ -454,6 +461,7 @@ const statusFilterOptions: { value: TaskStatusType | 'all'; label: string }[] = 
         <p class="text-sm text-gray-500 mb-1">暂无任务</p>
         <p class="text-xs text-gray-400 mb-4">点击右上角新建任务，为案件添加待办事项</p>
         <button
+          v-if="permissions.canEditCase"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
           @click="handleCreate"
         >

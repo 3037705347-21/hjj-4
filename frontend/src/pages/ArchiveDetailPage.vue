@@ -17,6 +17,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Shield,
 } from 'lucide-vue-next'
 import {
   getArchiveDetail,
@@ -27,9 +28,11 @@ import {
 import { archiveStatusMap, ArchiveStatus } from '@/types'
 import type { CaseArchive, BorrowRecord, ExportRecord } from '@/types'
 import BorrowFormModal from '@/components/BorrowFormModal.vue'
+import { usePermissions } from '@/composables/usePermissions'
 
 const route = useRoute()
 const router = useRouter()
+const permissions = usePermissions()
 
 type DetailTab = 'overview' | 'export-records' | 'borrow-history'
 
@@ -213,7 +216,13 @@ const sortedBorrowHistory = computed(() => {
               </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-              <template v-if="canBorrow">
+              <div class="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-50 border border-blue-200 rounded-full">
+                <Shield class="w-3 h-3 text-blue-600" />
+                <span class="text-xs font-medium text-blue-700">
+                  {{ permissions.currentRoleInfo?.label }}
+                </span>
+              </div>
+              <template v-if="canBorrow && permissions.canArchiveCase">
                 <button
                   class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
                   @click="openBorrowModal"
@@ -222,7 +231,7 @@ const sortedBorrowHistory = computed(() => {
                   借阅登记
                 </button>
               </template>
-              <template v-else-if="canReturn">
+              <template v-else-if="canReturn && permissions.canArchiveCase">
                 <button
                   class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
                   @click="openReturnModal"
@@ -550,6 +559,7 @@ const sortedBorrowHistory = computed(() => {
               </h3>
               <div class="flex items-center gap-2">
                 <button
+                  v-if="permissions.canExportExcel"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
                   @click="handleExportRecord('excel')"
                 >
@@ -557,6 +567,7 @@ const sortedBorrowHistory = computed(() => {
                   导出 Excel
                 </button>
                 <button
+                  v-if="permissions.canExportPdf"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                   @click="handleExportRecord('pdf')"
                 >
@@ -617,7 +628,7 @@ const sortedBorrowHistory = computed(() => {
                 <History class="w-5 h-5 text-purple-600" />
                 借阅历史
               </h3>
-              <template v-if="canBorrow">
+              <template v-if="canBorrow && permissions.canArchiveCase">
                 <button
                   class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                   @click="openBorrowModal"
