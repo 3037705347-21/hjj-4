@@ -593,6 +593,127 @@ export const caseFieldDefinitions: Array<{ key: string; label: string; descripti
   { key: 'status', label: '案件状态', description: '待处理/进行中/已结案' },
 ]
 
+export enum OperationType {
+  MATERIAL_ADD_FOLDER = 'material_add_folder',
+  MATERIAL_UPLOAD_FILE = 'material_upload_file',
+  MATERIAL_RENAME = 'material_rename',
+  MATERIAL_DELETE = 'material_delete',
+  MATERIAL_MOVE = 'material_move',
+  MATERIAL_EDIT = 'material_edit',
+  MATERIAL_BATCH_DELETE = 'material_batch_delete',
+  MATERIAL_BATCH_MOVE = 'material_batch_move',
+  MATERIAL_BATCH_REMARK = 'material_batch_remark',
+  CASE_INFO_EDIT = 'case_info_edit',
+  CASE_STATUS_CHANGE = 'case_status_change',
+  CASE_EXPORT = 'case_export',
+  CASE_GENERATE_DOCUMENT = 'case_generate_document',
+  CASE_CREATE_ARCHIVE = 'case_create_archive',
+  CASE_ADD_COMMUNICATION = 'case_add_communication',
+}
+
+export interface CaseOperationLog {
+  id: string
+  caseId: string
+  operationType: OperationType
+  operator: string
+  timestamp: string
+  summary: string
+  details?: Record<string, unknown>
+}
+
+export const operationTypeMap: Record<OperationType, { label: string; category: string; class: string; dotClass: string }> = {
+  [OperationType.MATERIAL_ADD_FOLDER]: {
+    label: '新增文件夹',
+    category: '材料操作',
+    class: 'bg-amber-100 text-amber-800 border-amber-200',
+    dotClass: 'bg-amber-500',
+  },
+  [OperationType.MATERIAL_UPLOAD_FILE]: {
+    label: '上传文件',
+    category: '材料操作',
+    class: 'bg-blue-100 text-blue-800 border-blue-200',
+    dotClass: 'bg-blue-500',
+  },
+  [OperationType.MATERIAL_RENAME]: {
+    label: '重命名',
+    category: '材料操作',
+    class: 'bg-purple-100 text-purple-800 border-purple-200',
+    dotClass: 'bg-purple-500',
+  },
+  [OperationType.MATERIAL_DELETE]: {
+    label: '删除',
+    category: '材料操作',
+    class: 'bg-red-100 text-red-800 border-red-200',
+    dotClass: 'bg-red-500',
+  },
+  [OperationType.MATERIAL_MOVE]: {
+    label: '移动',
+    category: '材料操作',
+    class: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    dotClass: 'bg-indigo-500',
+  },
+  [OperationType.MATERIAL_EDIT]: {
+    label: '编辑材料',
+    category: '材料操作',
+    class: 'bg-teal-100 text-teal-800 border-teal-200',
+    dotClass: 'bg-teal-500',
+  },
+  [OperationType.MATERIAL_BATCH_DELETE]: {
+    label: '批量删除',
+    category: '材料操作',
+    class: 'bg-red-100 text-red-800 border-red-200',
+    dotClass: 'bg-red-500',
+  },
+  [OperationType.MATERIAL_BATCH_MOVE]: {
+    label: '批量移动',
+    category: '材料操作',
+    class: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    dotClass: 'bg-indigo-500',
+  },
+  [OperationType.MATERIAL_BATCH_REMARK]: {
+    label: '批量备注',
+    category: '材料操作',
+    class: 'bg-slate-100 text-slate-800 border-slate-200',
+    dotClass: 'bg-slate-500',
+  },
+  [OperationType.CASE_INFO_EDIT]: {
+    label: '编辑案件信息',
+    category: '案件操作',
+    class: 'bg-violet-100 text-violet-800 border-violet-200',
+    dotClass: 'bg-violet-500',
+  },
+  [OperationType.CASE_STATUS_CHANGE]: {
+    label: '变更状态',
+    category: '案件操作',
+    class: 'bg-orange-100 text-orange-800 border-orange-200',
+    dotClass: 'bg-orange-500',
+  },
+  [OperationType.CASE_EXPORT]: {
+    label: '导出清单',
+    category: '案件操作',
+    class: 'bg-green-100 text-green-800 border-green-200',
+    dotClass: 'bg-green-500',
+  },
+  [OperationType.CASE_GENERATE_DOCUMENT]: {
+    label: '生成文书',
+    category: '案件操作',
+    class: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    dotClass: 'bg-emerald-500',
+  },
+  [OperationType.CASE_CREATE_ARCHIVE]: {
+    label: '创建归档',
+    category: '案件操作',
+    class: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    dotClass: 'bg-yellow-500',
+  },
+  [OperationType.CASE_ADD_COMMUNICATION]: {
+    label: '新增沟通记录',
+    category: '案件操作',
+    class: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    dotClass: 'bg-cyan-500',
+  },
+}
+
 export const materialFieldDefinitions: Array<{ key: string; label: string; description: string }> = [
   { key: 'index', label: '序号', description: '自动生成的序号' },
   { key: 'name', label: '材料名称', description: '材料的名称' },

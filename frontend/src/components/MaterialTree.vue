@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, inject } from 'vue'
 import {
   FolderPlus,
   FilePlus,
@@ -25,7 +25,7 @@ import {
 } from 'lucide-vue-next'
 import MaterialTreeItem from './MaterialTreeItem.vue'
 import type { MaterialNode } from '@/types'
-import { MaterialNodeType } from '@/types'
+import { MaterialNodeType, OperationType } from '@/types'
 import { generateId } from '@/mock/data'
 import {
   filterMaterialTree,
@@ -54,6 +54,9 @@ import {
 import { usePermissions } from '@/composables/usePermissions'
 
 const permissions = usePermissions()
+
+type LogFunction = (operationType: OperationType, summary: string, details?: Record<string, unknown>) => void
+const logOperation = inject<LogFunction>('logCaseOperation', () => {})
 
 interface Props {
   materials: MaterialNode[]
@@ -213,6 +216,7 @@ const addRootFolder = () => {
   }
   localMaterials.value = [...localMaterials.value, newFolder]
   emit('update:materials', localMaterials.value)
+  logOperation(OperationType.MATERIAL_ADD_FOLDER, '在根目录下新增文件夹「新建文件夹」', { nodeName: '新建文件夹', parentId: null })
 }
 
 const addRootFile = () => {
@@ -317,6 +321,8 @@ const handleAdd = (parentId: string | null, type: MaterialNodeType) => {
     }
     localMaterials.value = addChildNode(localMaterials.value, parentId, newNode)
     emit('update:materials', localMaterials.value)
+    const parentName = parentId ? findNodeById(localMaterials.value, parentId)?.name : '根目录'
+    logOperation(OperationType.MATERIAL_ADD_FOLDER, `在「${parentName}」下新增文件夹「新建文件夹」`, { nodeName: '新建文件夹', parentId })
     if (multiSelectMode.value) {
       selectedNodeIds.value = new Set([newNode.id])
     } else {
@@ -357,6 +363,7 @@ const handleRename = (node: MaterialNode) => {
 
   localMaterials.value = updateNodeById(localMaterials.value, node.id, { name: trimmedName })
   emit('update:materials', localMaterials.value)
+  logOperation(OperationType.MATERIAL_RENAME, `将「${node.name}」重命名为「${trimmedName}」`, { oldName: node.name, newName: trimmedName, nodeId: node.id })
 }
 
 const getFileNodeIds = (nodes: MaterialNode[]): string[] => {
@@ -391,6 +398,7 @@ const handleDelete = (node: MaterialNode) => {
       selectedNodeIds.value = newSet
     }
     emit('update:materials', localMaterials.value)
+    logOperation(OperationType.MATERIAL_DELETE, `删除了${node.type === MaterialNodeType.FOLDER ? '文件夹' : '文件'}「${node.name}」`, { nodeName: node.name, nodeType: node.type, nodeId: node.id })
   }
 }
 
@@ -428,6 +436,7 @@ const handleBatchDelete = () => {
   selectedNodeIds.value = new Set()
   lastSelectedId.value = null
   emit('update:materials', localMaterials.value)
+  logOperation(OperationType.MATERIAL_BATCH_DELETE, `批量删除了 ${fileCount} 个文件、${folderCount} 个文件夹`, { fileCount, folderCount })
 }
 
 const processFileUpload = async (file: File, parentId: string | null): Promise<MaterialNode> => {
@@ -479,6 +488,8 @@ const processFileUpload = async (file: File, parentId: string | null): Promise<M
     if (storageItem.isPlaceholder) {
       console.warn(`File "${file.name}" exceeds size limit, stored as placeholder`)
     }
+
+    logOperation(OperationType.MATERIAL_UPLOAD_FILE, `上传了文件「${file.name}」（${formatFileSize(storageItem.fileSize)}）`, { fileName: file.name, fileSize: formatFileSize(storageItem.fileSize), parentId })
 
     return finalNode
   } catch (error) {
@@ -601,6 +612,8 @@ const confirmBatchMove = () => {
   emit('update:materials', localMaterials.value)
   showMoveDialog.value = false
   moveTargetFolderId.value = null
+  const targetName = targetId ? findNodeById(localMaterials.value, targetId)?.name || '目标文件夹' : '根目录'
+  logOperation(OperationType.MATERIAL_BATCH_MOVE, `批量移动了 ${nodesToMove.length} 个节点到「${targetName}」`, { count: nodesToMove.length, targetId, targetName })
 }
 
 const handleBatchRemark = () => {
@@ -621,6 +634,7 @@ const confirmBatchRemark = () => {
   emit('update:materials', localMaterials.value)
   showRemarkDialog.value = false
   batchRemark.value = ''
+  logOperation(OperationType.MATERIAL_BATCH_REMARK, `为 ${ids.length} 个节点批量添加了备注`, { count: ids.length, remark })
 }
 
 const handleBatchExport = (format: 'excel' | 'pdf') => {
@@ -685,6 +699,8 @@ const handleDrop = (targetId: string | null, position: 'inside' | 'before' | 'af
   localMaterials.value = result
   emit('update:materials', localMaterials.value)
   draggingNodeId.value = null
+  const targetName = targetId ? findNodeById(localMaterials.value, targetId)?.name || '目标位置' : '根目录'
+  logOperation(OperationType.MATERIAL_MOVE, `将「${sourceNode.name}」移动到「${targetName}」`, { nodeName: sourceNode.name, targetId, targetName })
 }
 
 const setSelectedNode = (node: MaterialNode) => {

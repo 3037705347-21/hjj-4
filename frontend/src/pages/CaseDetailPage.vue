@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -52,6 +52,7 @@ import CaseEventSummary from '@/components/CaseEventSummary.vue'
 import CommunicationRecordSummary from '@/components/CommunicationRecordSummary.vue'
 import CommunicationRecordList from '@/components/CommunicationRecordList.vue'
 import CommunicationRecordFormModal from '@/components/CommunicationRecordFormModal.vue'
+import CaseOperationLogCard from '@/components/CaseOperationLogCard.vue'
 import { useCasesStore, caseStatusMap } from '@/stores/cases'
 import { generateId } from '@/mock/data'
 import { getTemplateByCaseType } from '@/mock/materialTemplates'
@@ -59,7 +60,7 @@ import { computeTaskSummary, refreshOverdueTasks } from '@/mock/tasks'
 import { computeEventSummary, refreshOverdueEvents } from '@/mock/caseEvents'
 import { getArchiveByCaseId, createArchive, generateArchiveCode } from '@/mock/archives'
 import type { Case, MaterialNode, CaseStatus as CaseStatusType, StatusChangeRecord, TaskSummary, CaseEventSummary as EventSummaryType } from '@/types'
-import { CaseStatus, MaterialNodeType as NodeType, ArchiveStatus, archiveStatusMap } from '@/types'
+import { CaseStatus, MaterialNodeType as NodeType, ArchiveStatus, archiveStatusMap, OperationType } from '@/types'
 import { flattenMaterialTree, updateNodeById, findParentNode, hasDuplicateName, flattenSelectedNodes, findNodeById, expandPathToNode } from '@/utils/treeUtils'
 import { exportToExcel, exportToPDF, exportMaterialList, defaultExportColumns, exportRangeLabels, type ExportRange, type ExportColumnConfig } from '@/utils/exportUtils'
 import {
@@ -84,6 +85,7 @@ import {
   deleteFile,
 } from '@/utils/fileStorage'
 import { usePermissions } from '@/composables/usePermissions'
+import { useCaseOperationLog } from '@/composables/useCaseOperationLog'
 
 type DetailTab = 'case-info' | 'communication'
 
@@ -91,6 +93,13 @@ const route = useRoute()
 const router = useRouter()
 const store = useCasesStore()
 const permissions = usePermissions()
+
+provide('logCaseOperation', (operationType: OperationType, summary: string, details?: Record<string, unknown>) => {
+  if (currentCase.value) {
+    const caseLog = useCaseOperationLog(currentCase.value.id)
+    caseLog.addLog(operationType, summary, details)
+  }
+})
 
 const currentCase = ref<Case | null>(null)
 const selectedNode = ref<MaterialNode | null>(null)
@@ -121,6 +130,11 @@ const isEditing = ref(false)
 const editForm = ref<Partial<MaterialNode>>({})
 const originalNode = ref<MaterialNode | null>(null)
 const formErrors = ref<Record<string, string>>({})
+
+const isEditingCaseInfo = ref(false)
+const caseEditForm = ref<Partial<Case>>({})
+const originalCaseInfo = ref<Case | null>(null)
+const caseInfoFormErrors = ref<Record<string, string>>({})
 
 const showStatusDialog = ref(false)
 const pendingStatus = ref<CaseStatusType | null>(null)
@@ -180,12 +194,13 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 const loadCaseData = (caseId: string) => {
-  if (isEditing.value && hasChanges.value) {
+  if ((isEditing.value && hasChanges.value) || (isEditingCaseInfo.value && hasCaseInfoChanges.value)) {
     if (!confirm('有未保存的更改，确定要离开当前案件吗？')) {
       router.push({ name: 'case-detail', params: { id: currentCase.value?.id || caseId } })
       return false
     }
     cancelEdit()
+    cancelEditCaseInfo()
   }
 
   const found = store.getCaseById(caseId)
@@ -206,6 +221,9 @@ const loadCaseData = (caseId: string) => {
   showMissingList.value = true
   activeTab.value = 'case-info'
   isEditing.value = false
+  isEditingCaseInfo.value = false
+  originalCaseInfo.value = null
+  caseEditForm.value = {}
 
   const highlightNodeId = route.query.highlight as string | undefined
   if (highlightNodeId && found) {
@@ -287,9 +305,10 @@ watch(() => route.query.highlight, (newHighlight, oldHighlight) => {
 })
 
 const goBack = () => {
-  if (isEditing.value && hasChanges.value) {
+  if ((isEditing.value && hasChanges.value) || (isEditingCaseInfo.value && hasCaseInfoChanges.value)) {
     if (confirm('有未保存的更改，确定要离开吗？')) {
       cancelEdit()
+      cancelEditCaseInfo()
     } else {
       return
     }
@@ -374,6 +393,10 @@ const confirmExport = () => {
     sortBy: exportSortBy.value || undefined,
     sortOrder: exportSortOrder.value,
   })
+
+  const caseLog = useCaseOperationLog(currentCase.value.id)
+  const formatLabel = pendingExportFormat.value === 'excel' ? 'Excel' : 'PDF'
+  caseLog.addLog(OperationType.CASE_EXPORT, `导出了${formatLabel}材料清单（${exportRangeLabels[exportRange.value]}）`, { format: pendingExportFormat.value, range: exportRange.value })
 
   showExportDialog.value = false
   pendingExportFormat.value = null
@@ -485,6 +508,21 @@ const saveEdit = () => {
 
   handleMaterialsUpdate(currentMaterials.value)
 
+  if (currentCase.value) {
+    const caseLog = useCaseOperationLog(currentCase.value.id)
+    const changes: string[] = []
+    if (trimmedName !== originalNode.value.name) changes.push(`名称「${originalNode.value.name}」→「${trimmedName}」`)
+    const newDesc = editForm.value.description?.trim() || ''
+    const oldDesc = originalNode.value.description || ''
+    if (newDesc !== oldDesc) changes.push('备注说明')
+    if (selectedNode.value.type === NodeType.FILE) {
+      if ((editForm.value.uploader?.trim() || '') !== (originalNode.value.uploader || '')) changes.push('上传人')
+      if ((editForm.value.uploadDate || '') !== (originalNode.value.uploadDate || '')) changes.push('上传日期')
+      if ((editForm.value.fileSize?.trim() || '') !== (originalNode.value.fileSize || '')) changes.push('文件大小')
+    }
+    caseLog.addLog(OperationType.MATERIAL_EDIT, `编辑了${selectedNode.value.type === NodeType.FOLDER ? '文件夹' : '文件'}「${originalNode.value.name}」：${changes.join('、')}`, { nodeId: originalNode.value.id, changes })
+  }
+
   isEditing.value = false
   editForm.value = {}
   formErrors.value = {}
@@ -509,6 +547,102 @@ const hasChanges = computed(() => {
   if (o.type === NodeType.FOLDER) {
     if (!!e.expanded !== !!o.expanded) return true
   }
+
+  return false
+})
+
+const startEditCaseInfo = () => {
+  if (!currentCase.value) return
+  originalCaseInfo.value = JSON.parse(JSON.stringify(currentCase.value))
+  caseEditForm.value = { ...currentCase.value }
+  caseInfoFormErrors.value = {}
+  isEditingCaseInfo.value = true
+}
+
+const cancelEditCaseInfo = () => {
+  isEditingCaseInfo.value = false
+  caseEditForm.value = {}
+  caseInfoFormErrors.value = {}
+  originalCaseInfo.value = null
+}
+
+const validateCaseInfoForm = (): boolean => {
+  const errors: Record<string, string> = {}
+  const form = caseEditForm.value
+
+  if (!form.name || !form.name.trim()) {
+    errors.name = '案件名称不能为空'
+  } else if (form.name.trim() !== form.name) {
+    errors.name = '案件名称不能包含首尾空格'
+  }
+  if (!form.client || !form.client.trim()) {
+    errors.client = '我方当事人不能为空'
+  }
+  if (!form.opposingParty || !form.opposingParty.trim()) {
+    errors.opposingParty = '对方当事人不能为空'
+  }
+  if (!form.responsibleLawyer || !form.responsibleLawyer.trim()) {
+    errors.responsibleLawyer = '承办律师不能为空'
+  }
+  if (!form.filingDate || !form.filingDate.trim()) {
+    errors.filingDate = '立案日期不能为空'
+  }
+  if (!form.caseType || !form.caseType.trim()) {
+    errors.caseType = '案件类型不能为空'
+  }
+
+  caseInfoFormErrors.value = errors
+  return Object.keys(errors).length === 0
+}
+
+const saveCaseInfoEdit = () => {
+  if (!currentCase.value || !originalCaseInfo.value) return
+
+  if (!validateCaseInfoForm()) return
+
+  const updates: Partial<Case> = {
+    name: caseEditForm.value.name?.trim() || '',
+    client: caseEditForm.value.client?.trim() || '',
+    opposingParty: caseEditForm.value.opposingParty?.trim() || '',
+    responsibleLawyer: caseEditForm.value.responsibleLawyer?.trim() || '',
+    filingDate: caseEditForm.value.filingDate?.trim() || '',
+    caseType: caseEditForm.value.caseType?.trim() || '',
+    description: caseEditForm.value.description?.trim() || '',
+  }
+
+  store.updateCase(currentCase.value.id, updates)
+  currentCase.value = { ...currentCase.value, ...updates }
+
+  const caseLog = useCaseOperationLog(currentCase.value.id)
+  const changes: string[] = []
+  if (updates.name !== originalCaseInfo.value.name) changes.push(`名称「${originalCaseInfo.value.name}」→「${updates.name}」`)
+  if (updates.client !== originalCaseInfo.value.client) changes.push('我方当事人')
+  if (updates.opposingParty !== originalCaseInfo.value.opposingParty) changes.push('对方当事人')
+  if (updates.responsibleLawyer !== originalCaseInfo.value.responsibleLawyer) changes.push('承办律师')
+  if (updates.filingDate !== originalCaseInfo.value.filingDate) changes.push('立案日期')
+  if (updates.caseType !== originalCaseInfo.value.caseType) changes.push('案件类型')
+  if ((updates.description || '') !== (originalCaseInfo.value.description || '')) changes.push('案件描述')
+  caseLog.addLog(OperationType.CASE_INFO_EDIT, `编辑了案件信息：${changes.join('、')}`, { changes })
+
+  isEditingCaseInfo.value = false
+  caseEditForm.value = {}
+  caseInfoFormErrors.value = {}
+  originalCaseInfo.value = null
+}
+
+const hasCaseInfoChanges = computed(() => {
+  if (!originalCaseInfo.value || !caseEditForm.value) return false
+
+  const o = originalCaseInfo.value
+  const e = caseEditForm.value
+
+  if ((e.name?.trim() || '') !== o.name) return true
+  if ((e.client?.trim() || '') !== o.client) return true
+  if ((e.opposingParty?.trim() || '') !== o.opposingParty) return true
+  if ((e.responsibleLawyer?.trim() || '') !== o.responsibleLawyer) return true
+  if ((e.filingDate || '') !== o.filingDate) return true
+  if ((e.caseType?.trim() || '') !== o.caseType) return true
+  if ((e.description?.trim() || '') !== (o.description || '')) return true
 
   return false
 })
@@ -601,6 +735,11 @@ const confirmStatusChange = () => {
     currentCase.value.statusHistory = statusHistory.value
 
     store.updateCaseStatus(currentCase.value.id, pendingStatus.value, record)
+
+    const caseLog = useCaseOperationLog(currentCase.value.id)
+    const fromLabel = record.fromStatus ? caseStatusMap[record.fromStatus]?.label || record.fromStatus : '新建'
+    const toLabel = caseStatusMap[record.toStatus]?.label || record.toStatus
+    caseLog.addLog(OperationType.CASE_STATUS_CHANGE, `案件状态从「${fromLabel}」变更为「${toLabel}」`, { fromStatus: record.fromStatus, toStatus: record.toStatus, remark: statusRemark.value })
   }
 
   cancelStatusChange()
@@ -659,6 +798,10 @@ const openCreateCommunication = () => {
 const handleCommunicationFormSubmit = () => {
   showCommunicationForm.value = false
   editingCommunicationRecordId.value = null
+  if (currentCase.value) {
+    const caseLog = useCaseOperationLog(currentCase.value.id)
+    caseLog.addLog(OperationType.CASE_ADD_COMMUNICATION, '新增了一条沟通记录', {})
+  }
 }
 
 const handleCommunicationFormCancel = () => {
@@ -732,6 +875,9 @@ const handleArchiveSubmit = () => {
     keeper: archiveForm.value.keeper.trim(),
     remark: archiveForm.value.remark.trim() || undefined,
   })
+
+  const caseLog = useCaseOperationLog(currentCase.value.id)
+  caseLog.addLog(OperationType.CASE_CREATE_ARCHIVE, `创建了归档（编号：${archiveForm.value.archiveCode.trim()}）`, { archiveCode: archiveForm.value.archiveCode.trim(), physicalLocation: archiveForm.value.physicalLocation.trim() })
 
   archiveVersion.value++
   closeArchiveModal()
@@ -810,6 +956,9 @@ const handleGenerateDocument = () => {
     template: selectedTemplate.value,
     generatedBy: currentCase.value.responsibleLawyer || '当前用户',
   })
+
+  const caseLog = useCaseOperationLog(currentCase.value.id)
+  caseLog.addLog(OperationType.CASE_GENERATE_DOCUMENT, `生成了文书「${selectedTemplate.value.name}」`, { templateId: selectedTemplate.value.templateId, templateName: selectedTemplate.value.name })
 
   loadGenerationRecords()
   closeDocumentDialog()
@@ -1029,10 +1178,44 @@ const closeFilePreview = () => {
                   材料缺失 {{ materialCompleteness.missingRequired }} 项
                 </span>
               </div>
-              <h1 class="text-lg font-bold text-gray-900 truncate">{{ currentCase.name }}</h1>
+              <h1 v-if="!isEditingCaseInfo" class="text-lg font-bold text-gray-900 truncate">{{ currentCase.name }}</h1>
+              <input
+                v-else
+                v-model="caseEditForm.name"
+                type="text"
+                class="text-lg font-bold text-gray-900 w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :class="caseInfoFormErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+                placeholder="请输入案件名称"
+                @blur="validateCaseInfoForm"
+              />
             </div>
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
+            <template v-if="isEditingCaseInfo">
+              <button
+                class="flex items-center gap-2 px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors shadow-sm"
+                @click="cancelEditCaseInfo"
+              >
+                <X class="w-4 h-4" />
+                取消
+              </button>
+              <button
+                class="flex items-center gap-2 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="!hasCaseInfoChanges"
+                @click="saveCaseInfoEdit"
+              >
+                <Save class="w-4 h-4" />
+                保存
+              </button>
+            </template>
+            <button
+              v-else-if="permissions.canEditCase"
+              class="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              @click="startEditCaseInfo"
+            >
+              <Edit3 class="w-4 h-4" />
+              编辑案件
+            </button>
             <template v-if="isCaseClosed && permissions.canArchiveCase">
               <template v-if="hasArchive">
                 <button
@@ -1104,9 +1287,18 @@ const closeFilePreview = () => {
             <div class="p-2.5 bg-blue-50 rounded-lg">
               <User class="w-5 h-5 text-blue-600" />
             </div>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="text-xs text-gray-500">当事人（我方）</p>
-              <p class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.client }}</p>
+              <p v-if="!isEditingCaseInfo" class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.client }}</p>
+              <input
+                v-else
+                v-model="caseEditForm.client"
+                type="text"
+                class="w-full text-sm font-semibold text-gray-900 px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :class="caseInfoFormErrors.client ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+                placeholder="请输入我方当事人"
+                @blur="validateCaseInfoForm"
+              />
             </div>
           </div>
         </div>
@@ -1115,9 +1307,18 @@ const closeFilePreview = () => {
             <div class="p-2.5 bg-red-50 rounded-lg">
               <User class="w-5 h-5 text-red-600" />
             </div>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="text-xs text-gray-500">对方当事人</p>
-              <p class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.opposingParty }}</p>
+              <p v-if="!isEditingCaseInfo" class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.opposingParty }}</p>
+              <input
+                v-else
+                v-model="caseEditForm.opposingParty"
+                type="text"
+                class="w-full text-sm font-semibold text-gray-900 px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :class="caseInfoFormErrors.opposingParty ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+                placeholder="请输入对方当事人"
+                @blur="validateCaseInfoForm"
+              />
             </div>
           </div>
         </div>
@@ -1126,9 +1327,18 @@ const closeFilePreview = () => {
             <div class="p-2.5 bg-purple-50 rounded-lg">
               <Info class="w-5 h-5 text-purple-600" />
             </div>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="text-xs text-gray-500">承办律师</p>
-              <p class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.responsibleLawyer }}</p>
+              <p v-if="!isEditingCaseInfo" class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.responsibleLawyer }}</p>
+              <input
+                v-else
+                v-model="caseEditForm.responsibleLawyer"
+                type="text"
+                class="w-full text-sm font-semibold text-gray-900 px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :class="caseInfoFormErrors.responsibleLawyer ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+                placeholder="请输入承办律师"
+                @blur="validateCaseInfoForm"
+              />
             </div>
           </div>
         </div>
@@ -1137,9 +1347,17 @@ const closeFilePreview = () => {
             <div class="p-2.5 bg-green-50 rounded-lg">
               <Calendar class="w-5 h-5 text-green-600" />
             </div>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="text-xs text-gray-500">立案日期</p>
-              <p class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.filingDate }}</p>
+              <p v-if="!isEditingCaseInfo" class="text-sm font-semibold text-gray-900 truncate">{{ currentCase.filingDate }}</p>
+              <input
+                v-else
+                v-model="caseEditForm.filingDate"
+                type="date"
+                class="w-full text-sm font-semibold text-gray-900 px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :class="caseInfoFormErrors.filingDate ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+                @blur="validateCaseInfoForm"
+              />
             </div>
           </div>
         </div>
@@ -1148,9 +1366,34 @@ const closeFilePreview = () => {
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6">
         <div class="flex items-center gap-2 mb-2">
           <Info class="w-4 h-4 text-gray-400" />
+          <h2 class="text-sm font-semibold text-gray-700">案件类型</h2>
+        </div>
+        <p v-if="!isEditingCaseInfo" class="text-sm text-gray-600 leading-relaxed">{{ currentCase.caseType }}</p>
+        <input
+          v-else
+          v-model="caseEditForm.caseType"
+          type="text"
+          class="w-full text-sm text-gray-600 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          :class="caseInfoFormErrors.caseType ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+          placeholder="请输入案件类型"
+          @blur="validateCaseInfoForm"
+        />
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6">
+        <div class="flex items-center gap-2 mb-2">
+          <Info class="w-4 h-4 text-gray-400" />
           <h2 class="text-sm font-semibold text-gray-700">案件描述</h2>
         </div>
-        <p class="text-sm text-gray-600 leading-relaxed">{{ currentCase.description }}</p>
+        <p v-if="!isEditingCaseInfo" class="text-sm text-gray-600 leading-relaxed">{{ currentCase.description }}</p>
+        <textarea
+          v-else
+          v-model="caseEditForm.description"
+          rows="4"
+          class="w-full text-sm text-gray-600 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          :class="caseInfoFormErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-200'"
+          placeholder="请输入案件描述"
+        ></textarea>
       </div>
 
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
@@ -1776,6 +2019,12 @@ const closeFilePreview = () => {
         v-if="currentCase"
         :case-id="currentCase.id"
         :materials="currentMaterials"
+        class="mt-6"
+      />
+
+      <CaseOperationLogCard
+        v-if="currentCase"
+        :case-id="currentCase.id"
         class="mt-6"
       />
       </div>
